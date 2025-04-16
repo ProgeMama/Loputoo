@@ -203,12 +203,12 @@
 </head>
 
 <body>
-    <!-- Animation Page -->
+    
     <div id="animation-page">
         <canvas id="canvas1"></canvas>
     </div>
 
-    <!-- Gallery Page -->
+    
     <div id="gallery-page">
         <h1>Kõnekas Kunstigalerii</h1>
         <div class="button-container">
@@ -222,7 +222,7 @@
     </div>
 
     <script>
-        // Animation code
+        
         const canvas = document.getElementById('canvas1');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
@@ -304,7 +304,7 @@
         }
         animate(0);
 
-        // Gallery code
+        
         let allArtworks = [];
         let viewedArtworks = new Set();
         let isLoading = false;
@@ -546,32 +546,32 @@
             loadNewArtworks().then(() => displayArtworks());
         }
 
-        // Initialize gallery after animation
+        
         setTimeout(() => {
             const animationPage = document.getElementById('animation-page');
             const galleryPage = document.getElementById('gallery-page');
 
-            // Fade out animation
+            
             animationPage.classList.add('fade-out');
 
-            // After fade out, remove animation and show gallery
+            
             setTimeout(() => {
                 animationPage.style.display = 'none';
                 galleryPage.style.display = 'block';
 
-                // Initialize gallery
+                
                 const inspireBtn = document.querySelector('.inspire-btn');
                 const resetBtn = document.querySelector('.reset-btn');
 
                 inspireBtn.addEventListener('click', displayArtworks);
                 resetBtn.addEventListener('click', resetHistory);
 
-                // Load initial artworks
+             
                 loadNewArtworks().then(() => displayArtworks());
             }, 1000);
         }, 6000);
 
-        // Window resize handler
+   
         window.addEventListener('resize', function () {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
