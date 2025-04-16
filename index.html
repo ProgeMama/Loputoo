@@ -15,9 +15,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet">
-
     <style>
-        
         #animation-page {
             position: fixed;
             top: 0;
@@ -39,10 +37,9 @@
             left: 0;
         }
 
-        
         #gallery-page {
             display: none;
-            background-color: #ebedef;
+            background-color: #f5f5f5;
             min-height: 100vh;
             padding: 20px;
         }
@@ -203,12 +200,9 @@
 </head>
 
 <body>
-    
     <div id="animation-page">
         <canvas id="canvas1"></canvas>
     </div>
-
-    
     <div id="gallery-page">
         <h1>Kõnekas Kunstigalerii</h1>
         <div class="button-container">
@@ -220,20 +214,17 @@
         <div id="errorNotification" class="notification error"></div>
         <div class="content"></div>
     </div>
-
     <script>
-        
+        // Animation code
         const canvas = document.getElementById('canvas1');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-
         let gradient = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 100, canvas.width / 2, canvas.height / 2, canvas.width / 2);
         gradient.addColorStop(0, 'magenta');
         gradient.addColorStop(0.8, '#FF69B4');
         gradient.addColorStop(0.5, 'cyan');
         gradient.addColorStop(0.9, 'magenta');
-
         class Symbol {
             constructor(x, y, fontSize, canvasHeight) {
                 this.characters = '♡⚛︎♥︎☻⨂♡♘☂︎☀︎☻☾♘♡☂︎∞⚛︎♠︎♘∏⋈♥︎♛♝♘♚∑⚛︎♓︎♡♊︎♥︎☂︎☻♘★⥣⇓☂︎☻⚛︎♥︎❄︎☆£❀$¥€Ω×1⚛︎2⚛︎3♥︎4☂︎☂︎56♡♥︎78♡9✈︎⚤0⚛︎☻☂︎';
@@ -243,7 +234,6 @@
                 this.text = '';
                 this.canvasHeight = canvasHeight;
             }
-
             draw(context) {
                 this.text = this.characters.charAt(Math.floor(Math.random() * this.characters.length));
                 context.fillText(this.text, this.x * this.fontSize, this.y * this.fontSize);
@@ -254,7 +244,6 @@
                 }
             }
         }
-
         class Effect {
             constructor(canvasWidth, canvasHeight) {
                 this.canvasWidth = canvasWidth;
@@ -264,13 +253,11 @@
                 this.symbols = [];
                 this.#initialize();
             }
-
             #initialize() {
                 for (let i = 0; i < this.columns; i++) {
                     this.symbols[i] = new Symbol(i, 0, this.fontSize, this.canvasHeight);
                 }
             }
-
             resize(width, height) {
                 this.canvasWidth = width;
                 this.canvasHeight = height;
@@ -279,13 +266,11 @@
                 this.#initialize();
             }
         }
-
         const effect = new Effect(canvas.width, canvas.height);
         let lastTime = 0;
         const fps = 60;
         const nextFrame = 1000 / fps;
         let timer = 0;
-
         function animate(timeStamp) {
             const deltaTime = timeStamp - lastTime;
             lastTime = timeStamp;
@@ -303,12 +288,10 @@
             requestAnimationFrame(animate);
         }
         animate(0);
-
-        
+        // Gallery code
         let allArtworks = [];
         let viewedArtworks = new Set();
         let isLoading = false;
-
         function showNotification(element, duration = 4000) {
             [loadingNotification, successNotification, errorNotification].forEach(
                 notification => notification.style.display = 'none'
@@ -320,13 +303,11 @@
                 }, duration);
             }
         }
-
         function showError(message) {
             errorNotification.textContent = message;
             showNotification(errorNotification);
             console.error('Error:', message);
         }
-
         async function fetchArtworks(offset = 0, limit = 100) {
             try {
                 const response = await fetch('https://api.artic.edu/api/v1/artworks/search', {
@@ -353,24 +334,14 @@
                         query: {
                             bool: {
                                 must: [
-                                    {
-                                        term: {
-                                            is_public_domain: true
-                                        }
-                                    },
-                                    {
-                                        exists: {
-                                            field: "image_id"
-                                        }
-                                    }
+                                    { term: { is_public_domain: true } },
+                                    { exists: { field: "image_id" } }
                                 ]
                             }
                         }
                     })
                 });
-
                 if (!response.ok) throw new Error('Network response was not ok');
-
                 const data = await response.json();
                 return data.data.filter(artwork => artwork.image_id);
             } catch (error) {
@@ -378,21 +349,17 @@
                 return [];
             }
         }
-
         async function loadNewArtworks() {
             if (isLoading) return;
             isLoading = true;
             const inspireBtn = document.querySelector('.inspire-btn');
             inspireBtn.disabled = true;
-
             try {
                 showNotification(document.getElementById('loadingNotification'), 0);
                 const offset = Math.floor(Math.random() * 50000);
                 const newArtworks = await fetchArtworks(offset, 100);
-
                 const uniqueArtworks = newArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
-                allArtworks = [...allArtworks, ...uniqueArtworks];
-
+                allArtworks = uniqueArtworks;
                 if (uniqueArtworks.length === 0) {
                     showError('Ei leitud uusi pilte. Proovi uuesti.');
                 } else {
@@ -405,127 +372,56 @@
                 inspireBtn.disabled = false;
             }
         }
-
         function openDetailView(artwork) {
             const detailWindow = window.open('', '_blank');
             const imageUrl = `https://www.artic.edu/iiif/2/${artwork.image_id}/full/1686,/0/default.jpg`;
-
             detailWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <title>${artwork.title}</title>
                     <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            line-height: 1.6;
-                            margin: 0;
-                            padding: 20px;
-                            max-width: 1200px;
-                            margin: 0 auto;
-                            background-color: #f5f5f5;
-                            color: #333;
-                        }
-                        .artwork-image {
-                            width: 100%;
-                            max-width: 1200px;
-                            height: auto;
-                            margin-bottom: 20px;
-                            border-radius: 8px;
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                        }
-                        h1 {
-                            color: #333;
-                            margin-bottom: 10px;
-                            font-size: 2em;
-                        }
-                        .artist {
-                            color: #666;
-                            font-size: 1.2em;
-                            margin-bottom: 20px;
-                        }
-                        .info-section {
-                            background: white;
-                            padding: 20px;
-                            border-radius: 8px;
-                            margin-bottom: 20px;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        }
-                        .info-section h2 {
-                            color: #444;
-                            margin-top: 0;
-                            border-bottom: 2px solid #eee;
-                            padding-bottom: 10px;
-                        }
-                        .info-section p {
-                            margin: 10px 0;
-                            line-height: 1.8;
-                        }
+                        body { font-family: Arial, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+                        img { max-width: 100%; border-radius: 8px; margin-bottom: 20px; }
+                        h1 { color: #333; }
                     </style>
                 </head>
                 <body>
-                    <img src="${imageUrl}" alt="${artwork.title}" class="artwork-image">
+                    <img src="${imageUrl}" alt="${artwork.title}">
                     <h1>${artwork.title}</h1>
-                    <div class="artist">${artwork.artist_display || 'Artist Unknown'}</div>
-                    
-                    <div class="info-section">
-                        <h2>Teose info</h2>
-                        ${artwork.date_display ? `<p><strong>Kuupäev:</strong> ${artwork.date_display}</p>` : ''}
-                        ${artwork.medium_display ? `<p><strong>Tehnika:</strong> ${artwork.medium_display}</p>` : ''}
-                        ${artwork.dimensions ? `<p><strong>Mõõdud:</strong> ${artwork.dimensions}</p>` : ''}
-                        ${artwork.credit_line ? `<p><strong>Krediit:</strong> ${artwork.credit_line}</p>` : ''}
-                    </div>
-                    
-                    ${artwork.description ? `
-                    <div class="info-section">
-                        <h2>Kirjeldus</h2>
-                        <p>${artwork.description}</p>
-                    </div>
-                    ` : ''}
-                    
-                    ${artwork.publication_history ? `
-                    <div class="info-section">
-                        <h2>Avaldamise ajalugu</h2>
-                        <p>${artwork.publication_history}</p>
-                    </div>
-                    ` : ''}
-                    
-                    ${artwork.exhibition_history ? `
-                    <div class="info-section">
-                        <h2>Näituste ajalugu</h2>
-                        <p>${artwork.exhibition_history}</p>
-                    </div>
-                    ` : ''}
+                    <div>${artwork.artist_display || 'Artist Unknown'}</div>
+                    <div>${artwork.date_display || ''}</div>
+                    <div>${artwork.medium_display || ''}</div>
+                    <div>${artwork.description || ''}</div>
                 </body>
                 </html>
             `);
         }
-
-        function displayArtworks() {
+        async function displayArtworks() {
             if (isLoading) return;
-
-            const availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
-            const container = document.querySelector('.content');
-
-            if (availableArtworks.length < 6) {
-                loadNewArtworks().then(() => displayArtworks());
-                return;
+            let availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
+            // Kui kõik 100 pilti on läbi vaadatud, lae kohe järgmised 100 ja proovi uuesti
+            if (availableArtworks.length < 6 && allArtworks.length >= 100) {
+                await loadNewArtworks();
+                availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
+                if (availableArtworks.length < 6) {
+                    showError('Ei leitud uusi pilte. Proovi uuesti.');
+                    return;
+                }
+            } else if (availableArtworks.length < 6) {
+                await loadNewArtworks();
+                availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
             }
-
+            const container = document.querySelector('.content');
             const selectedArtworks = availableArtworks
                 .sort(() => Math.random() - 0.5)
                 .slice(0, 6);
-
             container.innerHTML = '';
-
             selectedArtworks.forEach(artwork => {
                 viewedArtworks.add(artwork.id);
-
                 const card = document.createElement('div');
                 card.className = 'artwork-card';
-
                 const imageUrl = `https://www.artic.edu/iiif/2/${artwork.image_id}/full/843,/0/default.jpg`;
-
                 card.innerHTML = `
                     <img src="${imageUrl}" alt="${artwork.title}" loading="lazy">
                     <div class="artwork-info">
@@ -534,44 +430,29 @@
                         <p style="color: #888; font-size: 0.8rem; margin-top: 5px;">${artwork.date_display || ''}</p>
                     </div>
                 `;
-
                 card.addEventListener('click', () => openDetailView(artwork));
                 container.appendChild(card);
             });
         }
-
         function resetHistory() {
             viewedArtworks.clear();
             allArtworks = [];
             loadNewArtworks().then(() => displayArtworks());
         }
-
-        
         setTimeout(() => {
             const animationPage = document.getElementById('animation-page');
             const galleryPage = document.getElementById('gallery-page');
-
-            
             animationPage.classList.add('fade-out');
-
-            
             setTimeout(() => {
                 animationPage.style.display = 'none';
                 galleryPage.style.display = 'block';
-
-                
                 const inspireBtn = document.querySelector('.inspire-btn');
                 const resetBtn = document.querySelector('.reset-btn');
-
                 inspireBtn.addEventListener('click', displayArtworks);
                 resetBtn.addEventListener('click', resetHistory);
-
-             
                 loadNewArtworks().then(() => displayArtworks());
             }, 1000);
-        }, 6000);
-
-   
+        }, 7000);
         window.addEventListener('resize', function () {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
