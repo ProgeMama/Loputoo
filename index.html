@@ -400,7 +400,7 @@
         async function displayArtworks() {
             if (isLoading) return;
             let availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
-            // Kui kõik 100 pilti on läbi vaadatud, lae kohe järgmised 100 ja proovi uuesti
+          
             if (availableArtworks.length < 6 && allArtworks.length >= 100) {
                 await loadNewArtworks();
                 availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
