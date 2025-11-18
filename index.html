@@ -1,433 +1,695 @@
 <!DOCTYPE html>
 <html lang="et">
-<head>
-  <!--
-  Inspiratsioon ja juhendamine / inspiration and guidance:
+  <head>
+    <!--
+      Inspiratsioon ja juhendamine / inspiration and guidance
 
-  VIDEOD
-  1. YouTube video: https://www.youtube.com/watch?v=oTahLEX3NXo
-  2. YouTube video: https://www.youtube.com/watch?v=6G6Z4qS9I8o
+      APId ja dokumentatsioon
+      - Art Institute of Chicago (AIC)
+        Docs: https://api.artic.edu/docs/
+        Search (POST): https://api.artic.edu/api/v1/artworks/search
+        IIIF pildid:
+          - kaart:  https://www.artic.edu/iiif/2/{image_id}/full/512,/0/default.jpg
+          - detail: https://www.artic.edu/iiif/2/{image_id}/full/1200,/0/default.jpg
 
-  API-d ja dokumentatsioon
-  - Art Institute of Chicago (AIC) API:
-    Docs: https://api.artic.edu/docs/#introduction
-    Search (POST): https://api.artic.edu/api/v1/artworks/search
-    IIIF pildi baas (näited):
-      kaart:  {{https://www.artic.edu/iiif/2/{image_id}}}/full/512,/0/default.jpg
-      detail: {{https://www.artic.edu/iiif/2/{image_id}}}/full/1200,/0/default.jpg
+      - The Met (New York)
+        Docs: https://metmuseum.github.io/
+        Search: https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*
+        Detail: https://collectionapi.metmuseum.org/public/collection/v1/objects/{id}
+    -->
 
-  - The Met Collection API:
-    Docs: https://metmuseum.github.io/
-    Otsing (GET): https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*
-    Detail (GET): {{https://collectionapi.metmuseum.org/public/collection/v1/objects/{id}}}
-  -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resonant Art Gallery</title>
 
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Resonant Art Gallery</title>
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://api.artic.edu" crossorigin />
+    <link rel="preconnect" href="https://www.artic.edu" crossorigin />
+    <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin />
 
-  <!-- Preconnect -->
-  <link rel="preconnect" href="https://api.artic.edu" crossorigin>
-  <link rel="preconnect" href="https://www.artic.edu" crossorigin>
-  <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin>
+    <!-- Foldit pealkirjale; keha algse stiiliga -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap"
+      rel="stylesheet"
+    />
 
-  <!-- Foldit pealkirjale, keha algse stiiliga -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet">
-
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
-      overflow-x: hidden;
-      margin: 0;
-      background: black;
-      color: #333;
-    }
-
-    /* Splash-animatsioon */
-    #animation-page {
-      position: fixed; inset: 0;
-      z-index: 1000; background: black;
-      transition: opacity 1s;
-    }
-    #animation-page.fade-out { opacity: 0; }
-    #canvas1 { position: absolute; inset: 0; }
-
-    /* Galerii */
-    #gallery-page {
-      display: none;
-      background-color: #f5f5f5;
-      min-height: 100vh;
-      padding: 20px;
-    }
-
-    h1 {
-      font-family: "Foldit", sans-serif;
-      font-optical-sizing: auto;
-      font-weight: 400;
-      font-style: normal;
-      color: #333;
-      margin-bottom: 1.5rem;
-      font-size: 3.5rem;
-      text-align: center;
-    }
-
-    .button-container {
-      display: flex; flex-wrap: wrap; gap: 12px;
-      margin: 20px 0; justify-content: center; align-items: center;
-      font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
-    }
-
-    select, .inspire-btn, .reset-btn {
-      padding: 12px 16px; border: none; border-radius: 12px;
-      font-size: 1rem; cursor: pointer; transition: all 0.25s ease;
-      background: white; color: #333;
-    }
-    select { border: 1px solid #ccc; min-width: 260px; }
-
-    .inspire-btn { background-color: #65105b; color: white; }
-    .inspire-btn:hover { background-color: rgb(171,171,171); color: #111; }
-
-    .reset-btn { background-color: #064215; color: white; }
-    .reset-btn:hover { background-color: rgb(171,171,171); color: #111; }
-
-    .content {
-      display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 25px; max-width: 1200px; width: 100%; margin: 0 auto;
-    }
-    @media (max-width: 900px) { .content { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px) { .content { grid-template-columns: 1fr; } }
-
-    .artwork-card {
-      background: white; border-radius: 12px; overflow: hidden;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      outline: none;
-    }
-    .artwork-card:hover, .artwork-card:focus-within {
-      transform: translateY(-5px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-    .artwork-card img {
-      width: 100%; height: 300px; object-fit: cover; display: block;
-    }
-    .artwork-info { padding: 15px; }
-    .artwork-info h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #222; }
-    .artwork-info p { margin: 0; font-size: 0.9rem; color: #666; }
-
-    .notification {
-      position: fixed; top: 20px; right: 20px;
-      padding: 15px 25px; border-radius: 12px; color: white;
-      display: none; animation: slideIn 0.5s ease; z-index: 1000;
-    }
-    .loading { background-color: rgb(171,171,171); }
-    .success { background-color: #65105b; }
-    .error   { background-color: #dc3545; }
-    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  </style>
-</head>
-
-<body>
-  <!-- Splash-animatsioon -->
-  <div id="animation-page" aria-hidden="true">
-    <canvas id="canvas1"></canvas>
-  </div>
-
-  <!-- Galerii -->
-  <div id="gallery-page">
-    <h1>Resonant Art Gallery</h1>
-
-    <div class="button-container">
-      <label for="providerSelect" class="sr-only" style="position:absolute;left:-9999px;">Andmepakkuja</label>
-      <select id="providerSelect" aria-label="Data provider">
-        <option value="aic">Art Institute of Chicago</option>
-        <option value="met">The Met (New York)</option>
-      </select>
-      <button class="inspire-btn" type="button">Inspire Me</button>
-      <button class="reset-btn" type="button">Clear History</button>
-    </div>
-
-    <div id="loadingNotification" class="notification loading" role="status" aria-live="polite">Loading the art set…</div>
-    <div id="successNotification" class="notification success" role="status" aria-live="polite">Art set loaded!</div>
-    <div id="errorNotification" class="notification error" role="alert" aria-live="assertive"></div>
-
-    <div class="content" aria-live="polite"></div>
-  </div>
-
-  <script>
-    /***********************
-     * 1) Splash animatsioon – 7 s
-     ***********************/
-    const canvas = document.getElementById('canvas1');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    let gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 100, canvas.width/2, canvas.height/2, canvas.width/2);
-    gradient.addColorStop(0, 'magenta'); gradient.addColorStop(0.5, 'cyan'); gradient.addColorStop(0.8, '#FF69B4'); gradient.addColorStop(0.9, 'magenta');
-
-    class Symbol {
-      constructor(x, y, fontSize, canvasHeight) {
-        this.characters='♡⚛︎♥︎☻⨂♡♘☂︎☀︎☻☾♘♡☂︎∞⚛︎♠︎♘∏⋈♥︎♛♝♘♚∑⚛︎♓︎♡♊︎♥︎☂︎☻♘★⥣⇓☂︎☻⚛︎♥︎❄︎☆£❀$¥€Ω×1⚛︎2⚛︎3♥︎4☂︎☂︎56♡♥︎78♡9✈︎⚤0⚛︎☻☂︎';
-        this.x=x; this.y=y; this.fontSize=fontSize; this.text=''; this.canvasHeight=canvasHeight;
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
-      draw(c){ this.text=this.characters.charAt(Math.floor(Math.random()*this.characters.length));
-        c.fillText(this.text, this.x*this.fontSize, this.y*this.fontSize);
-        if(this.y*this.fontSize>this.canvasHeight && Math.random()>0.98) this.y=0; else this.y+=1;
+
+      body {
+        font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
+        overflow-x: hidden;
+        margin: 0;
+        background: black;
+        color: #333;
       }
-    }
-    class Effect {
-      constructor(w,h){ this.canvasWidth=w; this.canvasHeight=h; this.fontSize=20; this.columns=Math.floor(this.canvasWidth/this.fontSize); this.symbols=[]; this.#init(); }
-      #init(){ for(let i=0;i<this.columns;i++) this.symbols[i]=new Symbol(i,0,this.fontSize,this.canvasHeight); }
-      resize(w,h){ this.canvasWidth=w; this.canvasHeight=h; this.columns=Math.floor(this.canvasWidth/this.fontSize); this.symbols=[]; this.#init(); }
-    }
-    const effect = new Effect(canvas.width, canvas.height);
-    let lastTime=0; const fps=60; const nextFrame=1000/fps; let timer=0; let splashRunning=true;
 
-    function animate(ts){ if(!splashRunning) return;
-      const dt=ts-lastTime; lastTime=ts;
-      if(timer>nextFrame){
-        ctx.fillStyle='rgba(0,0,0,0.05)'; ctx.textAlign='center';
-        ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle=gradient; ctx.font=effect.fontSize+'px monospace';
-        effect.symbols.forEach(s=>s.draw(ctx)); timer=0;
-      } else { timer+=dt; }
-      requestAnimationFrame(animate);
-    }
-    animate(0);
+      /* Splash-animatsioon */
+      #animation-page {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: black;
+        transition: opacity 1s;
+      }
+      #animation-page.fade-out {
+        opacity: 0;
+      }
+      #canvas1 {
+        position: absolute;
+        inset: 0;
+      }
 
-    window.addEventListener('resize', ()=> {
-      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-      effect.resize(canvas.width, canvas.height);
-      gradient = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 100, canvas.width/2, canvas.height/2, canvas.width/2);
-      gradient.addColorStop(0, 'magenta'); gradient.addColorStop(0.5, 'cyan'); gradient.addColorStop(0.8, '#FF69B4'); gradient.addColorStop(0.9, 'magenta');
-    });
+      /* Galerii */
+      #gallery-page {
+        display: none;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+        padding: 20px;
+      }
 
-    /***********************
-     * 2) Teavitused
-     ***********************/
-    const loadingNotification=document.getElementById('loadingNotification');
-    const successNotification=document.getElementById('successNotification');
-    const errorNotification=document.getElementById('errorNotification');
-    function showNotification(el,duration=2000){ [loadingNotification,successNotification,errorNotification].forEach(n=>n.style.display='none'); el.style.display='block'; if(duration){ setTimeout(()=>{el.style.display='none';},duration);} }
-    function showError(msg){ errorNotification.textContent=msg||'Something went wrong.'; errorNotification.setAttribute('role','alert'); showNotification(errorNotification, 3000); console.error('Error:', msg); }
+      h1 {
+        font-family: "Foldit", sans-serif;
+        font-weight: 400;
+        color: #333;
+        margin-bottom: 1.5rem;
+        font-size: 3.5rem;
+        text-align: center;
+      }
 
-    /***********************
-     * 3) Andmepakkujad (AIC, Met)
-     ***********************/
-    let provider='aic';
-    let currentAbort=null;
+      .button-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 20px 0;
+        justify-content: center;
+        align-items: center;
+      }
 
-    async function fetchAIC(offset=0, limit=36, signal){
-      try{
-        const resp = await fetch('https://api.artic.edu/api/v1/artworks/search', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          signal,
-          body: JSON.stringify({
-            limit, offset,
-            fields:["id","title","image_id","artist_display","date_display","medium_display","dimensions","credit_line","description"],
-            query:{ bool:{ must:[ {term:{is_public_domain:true}}, {exists:{field:"image_id"}} ] } }
-          })
-        });
-        if(!resp.ok) throw new Error('AIC network error');
-        const data = await resp.json();
-        return (data.data||[]).filter(a=>a.image_id).map(a=>({
-          id:`aic_${a.id}`,
-          title:a.title||'Untitled',
-          imageUrl:`{{https://www.artic.edu/iiif/2/${a.image_id}}}/full/512,/0/default.jpg`,
-          imageUrlLarge:`{{https://www.artic.edu/iiif/2/${a.image_id}}}/full/1200,/0/default.jpg`,
-          artist:a.artist_display||'Artist Unknown',
-          date:a.date_display||'',
-          medium:a.medium_display||'',
-          description:a.description||'',
-          license:'Open Access / Public Domain'
-        }));
-      }catch(e){ if(e.name!=='AbortError') console.error(e); return[]; }
-    }
+      select,
+      .inspire-btn,
+      .reset-btn {
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        background: white;
+        color: #333;
+      }
 
-    async function fetchMet(offset=0, limit=36, signal){
-      try{
-        const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*', { signal });
-        if(!search.ok) throw new Error('MET search error');
-        const s = await search.json();
-        const ids = (s.objectIDs||[]).sort(()=>Math.random()-0.5).slice(offset, offset+limit);
-        const items = await Promise.all(ids.map(id=>fetch(`{{https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}}}`, { signal }).then(r=>r.ok?r.json():null).catch(()=>null)));
-        return items.filter(Boolean).filter(o=>o.primaryImageSmall).map(o=>({
-          id:`met_${o.objectID}`,
-          title:o.title||'Untitled',
-          imageUrl:o.primaryImageSmall,
-          imageUrlLarge:o.primaryImage||o.primaryImageSmall,
-          artist:o.artistDisplayName||'Artist Unknown',
-          date:o.objectDate||'',
-          medium:o.medium||'',
-          description:o.creditLine||'',
-          license:'Open Access (varies; many CC0)'
-        }));
-      }catch(e){ if(e.name!=='AbortError') console.error(e); return[]; }
-    }
+      select {
+        border: 1px solid #ccc;
+        min-width: 260px;
+      }
 
-    async function fetchArtworks(offset=0, limit=36, signal){
-      return provider==='met' ? fetchMet(offset, limit, signal) : fetchAIC(offset, limit, signal);
-    }
+      .inspire-btn {
+        background-color: #65105b;
+        color: white;
+      }
+      .inspire-btn:hover {
+        background-color: rgb(171, 171, 171);
+        color: #111;
+      }
 
-    /***********************
-     * 4) Galerii loogika
-     * - Alati täpselt 6 kaarti
-     * - “Inspire Me” asendab vana 6 uute 6 vastu
-     ***********************/
-    const contentEl=document.querySelector('.content');
-    const inspireBtn=document.querySelector('.inspire-btn');
-    const resetBtn=document.querySelector('.reset-btn');
-    const providerSelect=document.getElementById('providerSelect');
+      .reset-btn {
+        background-color: #064215;
+        color: white;
+      }
+      .reset-btn:hover {
+        background-color: rgb(171, 171, 171);
+        color: #111;
+      }
 
-    let allArtworks=[]; let viewedArtworks=new Set(); let isLoading=false;
+      .content {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 25px;
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+      }
 
-    function saveState(){ localStorage.setItem('viewedArtworks', JSON.stringify([...viewedArtworks])); localStorage.setItem('provider', provider); }
-    function loadState(){ try{ const v=JSON.parse(localStorage.getItem('viewedArtworks')||'[]'); viewedArtworks=new Set(v); const p=localStorage.getItem('provider'); if(p){ provider=p; providerSelect.value=p; } }catch{} }
-
-    async function loadNewArtworks(){
-      if(isLoading) return;
-      isLoading=true; inspireBtn.disabled=true;
-      try{
-        if(currentAbort) currentAbort.abort();
-        currentAbort = new AbortController();
-        showNotification(loadingNotification,0);
-        const offset=Math.floor(Math.random()*50000);
-        const newArtworks=await fetchArtworks(offset,36,currentAbort.signal);
-        const uniqueArtworks=newArtworks.filter(a=>!viewedArtworks.has(a.id));
-        allArtworks=uniqueArtworks;
-        if(uniqueArtworks.length===0) showError('No new images found. Please try again.');
-        else showNotification(successNotification,1500);
-      }catch(err){ if(err?.name!=='AbortError') showError('Failed to load new images.'); }
-      finally{ isLoading=false; inspireBtn.disabled=false; currentAbort=null; }
-    }
-
-    function makeCard(artwork){
-      const card=document.createElement('div');
-      card.className='artwork-card';
-
-      const thumb = artwork.imageUrl;
-      const full  = artwork.imageUrlLarge || thumb;
-
-      const img = new Image();
-      img.loading = 'eager';
-      img.fetchPriority = 'high';
-      img.alt = artwork.title;
-      img.src = thumb;
-
-      const detailUrl = makeDetailPageUrl(artwork, full);
-      const link = document.createElement('a');
-      link.href = detailUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.appendChild(img);
-
-      const info=document.createElement('div');
-      info.className='artwork-info';
-      info.innerHTML = `
-        <h3>${artwork.title}</h3>
-        <p>${artwork.artist || 'Artist Unknown'}</p>
-        <p style="color:#888;font-size:0.8rem;margin-top:5px;">${artwork.date || ''}</p>
-      `;
-
-      card.appendChild(link);
-      card.appendChild(info);
-      return card;
-    }
-
-    function renderExactlySix(batch){
-      contentEl.innerHTML = '';
-      batch.slice(0,6).forEach(artwork => {
-        viewedArtworks.add(artwork.id);
-        contentEl.appendChild(makeCard(artwork));
-      });
-      saveState();
-    }
-
-    async function displayArtworks(){
-      if(isLoading) return;
-
-      let available=allArtworks.filter(a=>!viewedArtworks.has(a.id));
-      if(available.length<6){
-        await loadNewArtworks();
-        available=allArtworks.filter(a=>!viewedArtworks.has(a.id));
-        if(available.length<6){
-          // viimane päästerõngas: kui ikka pole, reset vaadatud ja võta esimesed
-          viewedArtworks.clear();
-          available = allArtworks.slice(0,6);
+      @media (max-width: 900px) {
+        .content {
+          grid-template-columns: repeat(2, 1fr);
         }
       }
 
-      const selected=available.slice(0,6);
-      renderExactlySix(selected);
-    }
+      @media (max-width: 600px) {
+        .content {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    function resetHistory(){
-      viewedArtworks.clear();
-      localStorage.removeItem('viewedArtworks');
-      allArtworks=[];
-      displayArtworks();
-    }
+      .artwork-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        outline: none;
+      }
 
-    // “Inspire Me” = asenda 6 uute 6 vastu
-    providerSelect.addEventListener('change', e=>{ provider=e.target.value; saveState(); resetHistory(); });
-    inspireBtn.addEventListener('click', displayArtworks);
-    resetBtn.addEventListener('click', resetHistory);
+      .artwork-card:hover,
+      .artwork-card:focus-within {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      }
 
-    // 7 sek splash, siis esimene 6
-    setTimeout(()=>{
-      const animationPage=document.getElementById('animation-page');
-      const galleryPage=document.getElementById('gallery-page');
-      animationPage.classList.add('fade-out');
-      setTimeout(()=>{
-        const ctx2 = canvas.getContext('2d');
-        ctx2.clearRect(0,0,canvas.width,canvas.height);
-        galleryPage.style.display='block';
-        loadState();
-        loadNewArtworks().then(displayArtworks);
-        animationPage.style.display='none';
-      },1000);
-    },7500);
+      .artwork-card img {
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+        display: block;
+      }
 
-    /***********************
-     * 5) Detail-lehe generaator (Blob → objectURL)
-     ***********************/
-    function makeDetailPageUrl(artwork, fullImageUrl){
-      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-      const html = `<!DOCTYPE html>
+      .artwork-info {
+        padding: 15px;
+      }
+
+      .artwork-info h3 {
+        margin: 0 0 8px 0;
+        font-size: 1.1rem;
+        color: #222;
+      }
+
+      .artwork-info p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #666;
+      }
+
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 12px;
+        color: white;
+        display: none;
+        animation: slideIn 0.5s ease;
+        z-index: 1000;
+      }
+
+      .loading {
+        background-color: rgb(171, 171, 171);
+      }
+
+      .success {
+        background-color: #65105b;
+      }
+
+      .error {
+        background-color: #dc3545;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Splash-animatsioon -->
+    <div id="animation-page" aria-hidden="true">
+      <canvas id="canvas1"></canvas>
+    </div>
+
+    <!-- Galerii -->
+    <div id="gallery-page">
+      <h1>Resonant Art Gallery</h1>
+
+      <div class="button-container">
+        <label
+          for="providerSelect"
+          class="sr-only"
+          style="position: absolute; left: -9999px"
+          >Andmepakkuja</label
+        >
+        <select id="providerSelect" aria-label="Data provider">
+          <option value="aic">Art Institute of Chicago</option>
+          <option value="met">The Met (New York)</option>
+        </select>
+
+        <button class="inspire-btn" type="button">Inspire Me</button>
+        <button class="reset-btn" type="button">Clear History</button>
+      </div>
+
+      <div
+        id="loadingNotification"
+        class="notification loading"
+        role="status"
+        aria-live="polite"
+      >
+        Loading the art set…
+      </div>
+      <div
+        id="successNotification"
+        class="notification success"
+        role="status"
+        aria-live="polite"
+      >
+        Art set loaded!
+      </div>
+      <div
+        id="errorNotification"
+        class="notification error"
+        role="alert"
+        aria-live="assertive"
+      ></div>
+
+      <div class="content" aria-live="polite"></div>
+    </div>
+
+    <script>
+      /***********************
+       * 1) Splash animatsioon – 7 s
+       ***********************/
+      const canvas = document.getElementById("canvas1");
+      const ctx = canvas.getContext("2d");
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      let gradient = ctx.createRadialGradient(
+        canvas.width / 2,
+        canvas.height / 2,
+        100,
+        canvas.width / 2,
+        canvas.height / 2,
+        canvas.width / 2
+      );
+      gradient.addColorStop(0, "magenta");
+      gradient.addColorStop(0.5, "cyan");
+      gradient.addColorStop(0.8, "#FF69B4");
+      gradient.addColorStop(0.9, "magenta");
+
+      class Symbol {
+        constructor(x, y, fontSize, canvasHeight) {
+          this.characters =
+            "♡⚛︎♥︎☻⨂♡♘☂︎☀︎☻☾♘♡☂︎∞⚛︎♠︎♘∏⋈♥︎♛♝♘♚∑⚛︎♓︎♡♊︎♥︎☂︎☻♘★⥣⇓☂︎☻⚛︎♥︎❄︎☆£❀$¥€Ω×1⚛︎2⚛︎3♥︎4☂︎☂︎56♡♥︎78♡9✈︎⚤0⚛︎☻☂︎";
+          this.x = x;
+          this.y = y;
+          this.fontSize = fontSize;
+          this.text = "";
+          this.canvasHeight = canvasHeight;
+        }
+
+        draw(c) {
+          this.text = this.characters.charAt(
+            Math.floor(Math.random() * this.characters.length)
+          );
+          c.fillText(this.text, this.x * this.fontSize, this.y * this.fontSize);
+          if (this.y * this.fontSize > this.canvasHeight && Math.random() > 0.98)
+            this.y = 0;
+          else this.y += 1;
+        }
+      }
+
+      class Effect {
+        constructor(w, h) {
+          this.canvasWidth = w;
+          this.canvasHeight = h;
+          this.fontSize = 20;
+          this.columns = Math.floor(this.canvasWidth / this.fontSize);
+          this.symbols = [];
+          this.#init();
+        }
+
+        #init() {
+          for (let i = 0; i < this.columns; i++) {
+            this.symbols[i] = new Symbol(
+              i,
+              0,
+              this.fontSize,
+              this.canvasHeight
+            );
+          }
+        }
+
+        resize(w, h) {
+          this.canvasWidth = w;
+          this.canvasHeight = h;
+          this.columns = Math.floor(this.canvasWidth / this.fontSize);
+          this.symbols = [];
+          this.#init();
+        }
+      }
+
+      const effect = new Effect(canvas.width, canvas.height);
+      let lastTime = 0;
+      const fps = 60;
+      const nextFrame = 1000 / fps;
+      let timer = 0;
+      let splashRunning = true;
+
+      function animate(ts) {
+        if (!splashRunning) return;
+        const dt = ts - lastTime;
+        lastTime = ts;
+
+        if (timer > nextFrame) {
+          ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+          ctx.textAlign = "center";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = gradient;
+          ctx.font = effect.fontSize + "px monospace";
+          effect.symbols.forEach((s) => s.draw(ctx));
+          timer = 0;
+        } else {
+          timer += dt;
+        }
+
+        requestAnimationFrame(animate);
+      }
+      animate(0);
+
+      window.addEventListener("resize", () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        effect.resize(canvas.width, canvas.height);
+
+        gradient = ctx.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          100,
+          canvas.width / 2,
+          canvas.height / 2,
+          canvas.width / 2
+        );
+        gradient.addColorStop(0, "magenta");
+        gradient.addColorStop(0.5, "cyan");
+        gradient.addColorStop(0.8, "#FF69B4");
+        gradient.addColorStop(0.9, "magenta");
+      });
+
+      /***********************
+       * 2) Teavitused
+       ***********************/
+      const loadingNotification = document.getElementById("loadingNotification");
+      const successNotification = document.getElementById("successNotification");
+      const errorNotification = document.getElementById("errorNotification");
+
+      function showNotification(el, duration = 2000) {
+        [loadingNotification, successNotification, errorNotification].forEach(
+          (n) => (n.style.display = "none")
+        );
+        el.style.display = "block";
+        if (duration) {
+          setTimeout(() => {
+            el.style.display = "none";
+          }, duration);
+        }
+      }
+
+      function showError(msg) {
+        errorNotification.textContent = msg || "Something went wrong.";
+        errorNotification.setAttribute("role", "alert");
+        showNotification(errorNotification, 3000);
+        console.error("Error:", msg);
+      }
+
+      /***********************
+       * 3) Andmepakkujad (AIC, Met)
+       ***********************/
+      let provider = "aic";
+      let currentAbort = null;
+
+      // AIC (kaart 512, detail 1200)
+      async function fetchAIC(limit = 30, signal) {
+        try {
+          const resp = await fetch(
+            "https://api.artic.edu/api/v1/artworks/search",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal,
+              body: JSON.stringify({
+                limit,
+                fields: [
+                  "id",
+                  "title",
+                  "image_id",
+                  "artist_display",
+                  "date_display",
+                  "medium_display",
+                  "description"
+                ],
+                query: {
+                  bool: {
+                    must: [
+                      { term: { is_public_domain: true } },
+                      { exists: { field: "image_id" } }
+                    ]
+                  }
+                }
+              })
+            }
+          );
+
+          if (!resp.ok) throw new Error("AIC network error");
+          const data = await resp.json();
+
+          return (data.data || [])
+            .filter((a) => a.image_id)
+            .map((a) => ({
+              id: `aic_${a.id}`,
+              title: a.title || "Untitled",
+              imageUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/512,/0/default.jpg`,
+              imageUrlLarge: `https://www.artic.edu/iiif/2/${a.image_id}/full/1200,/0/default.jpg`,
+              artist: a.artist_display || "Artist Unknown",
+              date: a.date_display || "",
+              medium: a.medium_display || "",
+              description: a.description || "",
+              license: "Public Domain"
+            }));
+        } catch (e) {
+          if (e.name !== "AbortError") console.error(e);
+          return [];
+        }
+      }
+
+      // The Met
+      async function fetchMet(limit = 30, signal) {
+        try {
+          const s = await fetch(
+            "https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*",
+            { signal }
+          );
+          if (!s.ok) throw new Error("MET search error");
+          const js = await s.json();
+
+          const ids = (js.objectIDs || []).slice(0, 200);
+          ids.sort(() => Math.random() - 0.5);
+          const pick = ids.slice(0, limit);
+
+          const items = await Promise.all(
+            pick.map((id) =>
+              fetch(
+                `https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`,
+                { signal }
+              )
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null)
+            )
+          );
+
+          return items
+            .filter(Boolean)
+            .filter((o) => o.primaryImageSmall || o.primaryImage)
+            .map((o) => ({
+              id: `met_${o.objectID}`,
+              title: o.title || "Untitled",
+              imageUrl: o.primaryImageSmall || o.primaryImage,
+              imageUrlLarge: o.primaryImage || o.primaryImageSmall,
+              artist: o.artistDisplayName || "Artist Unknown",
+              date: o.objectDate || "",
+              medium: o.medium || "",
+              description: o.creditLine || "",
+              license: "Open Access"
+            }));
+        } catch (e) {
+          if (e.name !== "AbortError") console.error(e);
+          return [];
+        }
+      }
+
+      async function fetchArtworksBatch(signal) {
+        return provider === "met" ? fetchMet(30, signal) : fetchAIC(30, signal);
+      }
+
+      /***********************
+       * 4) Galerii loogika (alati 6; Inspire Me asendab)
+       ***********************/
+      const contentEl = document.querySelector(".content");
+      const inspireBtn = document.querySelector(".inspire-btn");
+      const resetBtn = document.querySelector(".reset-btn");
+      const providerSelect = document.getElementById("providerSelect");
+
+      let currentBatch = [];
+      let isLoading = false;
+
+      function makeDetailPageUrl(artwork, fullImageUrl) {
+        const esc = (s) =>
+          String(s ?? "").replace(/[&<>\"']/g, (c) => {
+            const map = {
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;"
+            };
+            return map[c] || c;
+          });
+
+        const html = `<!DOCTYPE html>
 <html lang="et">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>${esc(artwork.title)}</title>
-  <style>
-    body{font-family: Arial, sans-serif; background:#f5f5f5; color:#333; margin:0; padding:20px;}
-    .wrap{max-width:1100px; margin:0 auto;}
-    img{max-width:100%; height:auto; display:block; border-radius:8px; margin-bottom:16px;}
-    h1{margin:0 0 8px 0; font-size:1.8rem;}
-    .meta{color:#555; margin:4px 0;}
-    .desc{margin-top:12px; white-space:pre-wrap;}
-    a.btn{display:inline-block;margin-top:14px;background:#65105b;color:#fff;text-decoration:none;padding:10px 14px;border-radius:10px;}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <img src="${esc(fullImageUrl)}" alt="${esc(artwork.title)}"/>
-    <h1>${esc(artwork.title)}</h1>
-    <div class="meta">${esc(artwork.artist || 'Artist Unknown')}</div>
-    <div class="meta">${esc(artwork.date || '')}</div>
-    <div class="meta">${esc(artwork.medium || '')}</div>
-    <div class="desc">${esc(artwork.description || '')}</div>
-    <div class="meta" style="margin-top:12px;color:#2e7d32;">${esc(artwork.license || '')}</div>
-    <a class="btn" href="${esc(fullImageUrl)}" target="_blank" rel="noopener noreferrer">Ava pilt originaalsuuruses</a>
-  </div>
-</body>
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <title>${esc(artwork.title)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; background:#f5f5f5; color:#333; margin:0; padding:20px; }
+      .wrap { max-width:1100px; margin:0 auto; }
+      img { max-width:100%; height:auto; display:block; border-radius:8px; margin-bottom:16px; }
+      h1 { margin:0 0 8px 0; font-size:1.8rem; }
+      .meta { color:#555; margin:4px 0; }
+      .desc { margin-top:12px; white-space:pre-wrap; }
+      a.btn { display:inline-block; margin-top:14px; background:#65105b; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="${esc(fullImageUrl)}" alt="${esc(artwork.title)}"/>
+      <h1>${esc(artwork.title)}</h1>
+      <div class="meta">${esc(artwork.artist || "Artist Unknown")}</div>
+      <div class="meta">${esc(artwork.date || "")}</div>
+      <div class="meta">${esc(artwork.medium || "")}</div>
+      <div class="desc">${esc(artwork.description || "")}</div>
+      <div class="meta" style="margin-top:12px;">${esc(artwork.license || "")}</div>
+      <a class="btn" href="${esc(fullImageUrl)}" target="_blank" rel="noopener noreferrer">Ava pilt originaalsuuruses</a>
+    </div>
+  </body>
 </html>`;
-      const blob = new Blob([html], { type: 'text/html' });
-      return URL.createObjectURL(blob);
-    }
-  </script>
-</body>
+
+        const blob = new Blob([html], { type: "text/html" });
+        return URL.createObjectURL(blob);
+      }
+
+      function makeCard(artwork) {
+        const card = document.createElement("div");
+        card.className = "artwork-card";
+
+        const img = new Image();
+        img.loading = "eager";
+        img.fetchPriority = "high";
+        img.alt = artwork.title;
+        img.src = artwork.imageUrl;
+
+        const detailUrl = makeDetailPageUrl(
+          artwork,
+          artwork.imageUrlLarge || artwork.imageUrl
+        );
+
+        const link = document.createElement("a");
+        link.href = detailUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.appendChild(img);
+
+        const info = document.createElement("div");
+        info.className = "artwork-info";
+        info.innerHTML = `
+          <h3>${artwork.title}</h3>
+          <p>${artwork.artist || "Artist Unknown"}</p>
+          <p style="color:#888; font-size:0.8rem; margin-top:5px;">${
+            artwork.date || ""
+          }</p>
+        `;
+
+        card.appendChild(link);
+        card.appendChild(info);
+        return card;
+      }
+
+      function renderExactlySix(items) {
+        const six = items.slice(0, 6);
+        contentEl.innerHTML = "";
+        six.forEach((art) => contentEl.appendChild(makeCard(art)));
+      }
+
+      async function refreshSix() {
+        if (isLoading) return;
+        isLoading = true;
+
+        try {
+          if (currentAbort) currentAbort.abort();
+          currentAbort = new AbortController();
+          showNotification(loadingNotification, 0);
+
+          currentBatch = await fetchArtworksBatch(currentAbort.signal);
+          if (!currentBatch || currentBatch.length === 0) {
+            showError("No images found. Try again.");
+            return;
+          }
+
+          renderExactlySix(currentBatch);
+          showNotification(successNotification, 1200);
+        } catch (e) {
+          if (e?.name !== "AbortError") showError("Failed to load images.");
+        } finally {
+          isLoading = false;
+          currentAbort = null;
+        }
+      }
+
+      function resetAll() {
+        currentBatch = [];
+        contentEl.innerHTML = "";
+        refreshSix();
+      }
+
+      // Nupud
+      const providerSelectEl = document.getElementById("providerSelect");
+      const inspireBtnEl = document.querySelector(".inspire-btn");
+      const resetBtnEl = document.querySelector(".reset-btn");
+
+      providerSelectEl.addEventListener("change", (e) => {
+        provider = e.target.value;
+        resetAll();
+      });
+
+      // Inspire Me asendab alati 6 uut 6 vastu
+      inspireBtnEl.addEventListener("click", refreshSix);
+      resetBtnEl.addEventListener("click", resetAll);
+
+      // 7 sek splash, siis esimene 6
+      setTimeout(() => {
+        const animationPage = document.getElementById("animation-page");
+        const galleryPage = document.getElementById("gallery-page");
+        animationPage.classList.add("fade-out");
+        setTimeout(() => {
+          const ctx2 = canvas.getContext("2d");
+          ctx2.clearRect(0, 0, canvas.width, canvas.height);
+          galleryPage.style.display = "block";
+          refreshSix();
+          animationPage.style.display = "none";
+        }, 1000);
+      }, 7300);
+    </script>
+  </body>
 </html>
