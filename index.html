@@ -1,22 +1,40 @@
 <!DOCTYPE html>
 <html lang="et">
   <head>
+    <!--
+      Inspiratsioon ja juhendamine / inspiration and guidance
+
+      APId ja dokumentatsioon
+      - Art Institute of Chicago (AIC)
+        Docs: https://api.artic.edu/docs
+        Search (POST): https://api.artic.edu/api/v1/artworks/search
+        IIIF pildid:
+          - kaart:  https://www.artic.edu/iiif/2/{image_id}/full/512,/0/default.jpg
+          - detail: https://www.artic.edu/iiif/2/{image_id}/full/1200,/0/default.jpg
+
+      - The Met (New York)
+        Docs: https://metmuseum.github.io/
+        Search: https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*
+        Detail: https://collectionapi.metmuseum.org/public/collection/v1/objects/{id}
+    -->
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Resonant Art Gallery</title>
 
-    <!-- Preconnect (AIC, AIC IIIF, The Met) -->
+    <!-- Preconnect (AIC, AIC IIIF, The Met, Google Fonts) -->
     <link rel="preconnect" href="https://api.artic.edu" crossorigin />
     <link rel="preconnect" href="https://www.artic.edu" crossorigin />
     <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin />
-
-    <!-- Foldit pealkirjale; keha algse stiiliga -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Foldit pealkirjale; keha algse stiiliga -->
     <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet" />
 
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
+
       body {
         font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
         overflow-x: hidden;
@@ -24,12 +42,26 @@
         background: black;
         color: #333;
       }
+
       /* Splash-animatsioon */
-      #animation-page { position: fixed; inset: 0; z-index: 1000; background: black; transition: opacity 1s; }
+      #animation-page {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: black;
+        transition: opacity 1s;
+      }
       #animation-page.fade-out { opacity: 0; }
       #canvas1 { position: absolute; inset: 0; }
+
       /* Galerii */
-      #gallery-page { display: none; background-color: #f5f5f5; min-height: 100vh; padding: 20px; }
+      #gallery-page {
+        display: none;
+        background-color: #f5f5f5;
+        min-height: 100vh;
+        padding: 20px;
+      }
+
       h1 {
         font-family: "Foldit", sans-serif;
         font-weight: 400;
@@ -38,48 +70,87 @@
         font-size: 3.5rem;
         text-align: center;
       }
+
       .button-container {
-        display: flex; flex-wrap: wrap; gap: 12px;
-        margin: 20px 0; justify-content: center; align-items: center;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 20px 0;
+        justify-content: center;
+        align-items: center;
       }
+
       select, .inspire-btn, .reset-btn {
-        padding: 12px 16px; border: none; border-radius: 12px;
-        font-size: 1rem; cursor: pointer; transition: all 0.25s ease;
-        background: white; color: #333;
+        padding: 12px 16px;
+        border: none;
+        border-radius: 12px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        background: white;
+        color: #333;
       }
       select { border: 1px solid #ccc; min-width: 260px; }
       .inspire-btn { background-color: #65105b; color: white; }
-      .inspire-btn:hover { background-color: rgb(171,171,171); color: #111; }
+      .inspire-btn:hover { background-color: rgb(171, 171, 171); color: #111; }
       .reset-btn { background-color: #064215; color: white; }
-      .reset-btn:hover { background-color: rgb(171,171,171); color: #111; }
+      .reset-btn:hover { background-color: rgb(171, 171, 171); color: #111; }
+
       .content {
-        display: grid; grid-template-columns: repeat(3, 1fr);
-        gap: 25px; max-width: 1200px; width: 100%; margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 25px;
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
       }
       @media (max-width: 900px) { .content { grid-template-columns: repeat(2, 1fr); } }
       @media (max-width: 600px) { .content { grid-template-columns: 1fr; } }
+
       .artwork-card {
-        background: white; border-radius: 12px; overflow: hidden;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
         transition: transform 0.3s ease, box-shadow 0.3s ease;
         outline: none;
       }
-      .artwork-card:hover, .artwork-card:focus-within {
+      .artwork-card:hover,
+      .artwork-card:focus-within {
         transform: translateY(-5px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
       }
-      .artwork-card img { width: 100%; height: 300px; object-fit: cover; display: block; }
+
+      .artwork-card img {
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+        display: block;
+      }
+
       .artwork-info { padding: 15px; }
       .artwork-info h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #222; }
       .artwork-info p { margin: 0; font-size: 0.9rem; color: #666; }
+
       .notification {
-        position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px;
-        color: white; display: none; animation: slideIn 0.5s ease; z-index: 1000;
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 25px;
+        border-radius: 12px;
+        color: white;
+        display: none;
+        animation: slideIn 0.5s ease;
+        z-index: 1000;
       }
-      .loading { background-color: rgb(171,171,171); }
+      .loading { background-color: rgb(171, 171, 171); }
       .success { background-color: #65105b; }
       .error { background-color: #dc3545; }
-      @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+      @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to   { transform: translateX(0); opacity: 1; }
+      }
     </style>
   </head>
 
@@ -94,23 +165,47 @@
       <h1>Resonant Art Gallery</h1>
 
       <div class="button-container">
-        <label for="providerSelect" class="sr-only" style="position:absolute;left:-9999px;">Andmepakkuja</label>
+        <label for="providerSelect" class="sr-only" style="position: absolute; left: -9999px">Andmepakkuja</label>
         <select id="providerSelect" aria-label="Data provider">
           <option value="aic">Art Institute of Chicago</option>
           <option value="met">The Met (New York)</option>
         </select>
+
         <button class="inspire-btn" type="button">Inspire Me</button>
         <button class="reset-btn" type="button">Clear History</button>
       </div>
 
-      <div id="loadingNotification" class="notification loading" role="status" aria-live="polite">Loading the art set…</div>
-      <div id="successNotification" class="notification success" role="status" aria-live="polite">Art set loaded!</div>
+      <div id="loadingNotification" class="notification loading" role="status" aria-live="polite">
+        Loading the art set…
+      </div>
+      <div id="successNotification" class="notification success" role="status" aria-live="polite">
+        Art set loaded!
+      </div>
       <div id="errorNotification" class="notification error" role="alert" aria-live="assertive"></div>
 
       <div class="content" aria-live="polite"></div>
     </div>
 
     <script>
+      /***********************
+       * 0) Teksti puhastamine (eemalda HTML-jäägid)
+       ***********************/
+      function decodeEntities(str) {
+        const txt = document.createElement("textarea");
+        txt.innerHTML = str;
+        return txt.value;
+      }
+      function stripTags(str) {
+        return str.replace(/<\/?[^>]+>/g, "");
+      }
+      function normalizeSpaces(str) {
+        return str.replace(/[ \t]+/g, " ").replace(/\s*\n+\s*/g, "\n").trim();
+      }
+      function cleanText(v) {
+        const s = String(v ?? "");
+        return normalizeSpaces(stripTags(decodeEntities(s)));
+      }
+
       /***********************
        * 1) Splash animatsioon – 7 s
        ***********************/
@@ -131,8 +226,8 @@
       class Symbol {
         constructor(x, y, fontSize, canvasHeight) {
           this.characters = "♡⚛︎♥︎☻⨂♡♘☂︎☀︎☻☾♘♡☂︎∞⚛︎♠︎♘∏⋈♥︎♛♝♘♚∑⚛︎♓︎♡♊︎♥︎☂︎☻♘★⥣⇓☂︎☻⚛︎♥︎❄︎☆£❀$¥€Ω×1⚛︎2⚛︎3♥︎4☂︎☂︎56♡♥︎78♡9✈︎⚤0⚛︎☻☂︎";
-          this.x = x; this.y = y; this.fontSize = fontSize;
-          this.text = ""; this.canvasHeight = canvasHeight;
+          this.x = x; this.y = y; this.fontSize = fontSize; this.text = "";
+          this.canvasHeight = canvasHeight;
         }
         draw(c) {
           this.text = this.characters.charAt(Math.floor(Math.random() * this.characters.length));
@@ -145,8 +240,10 @@
       class Effect {
         constructor(w, h) {
           this.canvasWidth = w; this.canvasHeight = h;
-          this.fontSize = 20; this.columns = Math.floor(this.canvasWidth / this.fontSize);
-          this.symbols = []; this.#init();
+          this.fontSize = 20;
+          this.columns = Math.floor(this.canvasWidth / this.fontSize);
+          this.symbols = [];
+          this.#init();
         }
         #init() {
           for (let i = 0; i < this.columns; i++) {
@@ -156,15 +253,21 @@
         resize(w, h) {
           this.canvasWidth = w; this.canvasHeight = h;
           this.columns = Math.floor(this.canvasWidth / this.fontSize);
-          this.symbols = []; this.#init();
+          this.symbols = [];
+          this.#init();
         }
       }
 
       const effect = new Effect(canvas.width, canvas.height);
-      let lastTime = 0; const fps = 60; const nextFrame = 1000 / fps; let timer = 0;
+      let lastTime = 0;
+      const fps = 60;
+      const nextFrame = 1000 / fps;
+      let timer = 0;
 
       function animate(ts) {
-        const dt = ts - lastTime; lastTime = ts;
+        const dt = ts - lastTime;
+        lastTime = ts;
+
         if (timer > nextFrame) {
           ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
           ctx.textAlign = "center";
@@ -181,8 +284,10 @@
       animate(0);
 
       window.addEventListener("resize", () => {
-        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
         effect.resize(canvas.width, canvas.height);
+
         gradient = ctx.createRadialGradient(
           canvas.width / 2, canvas.height / 2, 100,
           canvas.width / 2, canvas.height / 2, canvas.width / 2
@@ -217,13 +322,28 @@
       }
 
       /***********************
-       * 3) Andmepakkujad (AIC, Met)
+       * 3) Andmepakkujad (AIC, Met) – Met optimeeritud
        ***********************/
       let provider = "aic";
       let currentAbort = null;
       let isLoading = false;
 
-      // AIC — kasuta juhuslikku offset’it, et tulemused vahelduksid
+      // Met /search ID-de cache (et mitte igal klõpsul uuesti küsida)
+      let metObjectIDsCache = null;
+
+      // Fetch koos timeoutiga
+      async function fetchWithTimeout(url, { signal, timeoutMs = 4500 } = {}) {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const res = await fetch(url, { signal: signal || controller.signal });
+          return res;
+        } finally {
+          clearTimeout(t);
+        }
+      }
+
+      // AIC — juhuslik offset, et tulemused vahelduksid; puhas tekst
       async function fetchAIC(limit = 30, signal) {
         try {
           const randomOffset = Math.floor(Math.random() * 50000);
@@ -234,7 +354,11 @@
             body: JSON.stringify({
               limit,
               offset: randomOffset,
-              fields: ["id","title","image_id","artist_display","date_display","medium_display","description"],
+              fields: [
+                "id", "title", "image_id",
+                "artist_display", "date_display",
+                "medium_display", "description"
+              ],
               query: {
                 bool: {
                   must: [
@@ -247,65 +371,98 @@
           });
           if (!resp.ok) throw new Error("AIC network error");
           const data = await resp.json();
+
           return (data.data || [])
             .filter((a) => a.image_id)
             .map((a) => ({
               id: `aic_${a.id}`,
-              title: a.title || "Untitled",
+              title: cleanText(a.title || "Untitled"),
               imageUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/512,/0/default.jpg`,
               imageUrlLarge: `https://www.artic.edu/iiif/2/${a.image_id}/full/1200,/0/default.jpg`,
-              artist: a.artist_display || "Artist Unknown",
-              date: a.date_display || "",
-              medium: a.medium_display || "",
-              description: a.description || "",
+              artist: cleanText(a.artist_display || "Artist Unknown"),
+              date: cleanText(a.date_display || ""),
+              medium: cleanText(a.medium_display || ""),
+              description: cleanText(a.description || ""),
               license: "Public Domain"
             }));
-        } catch (e) { if (e.name !== "AbortError") console.error(e); return []; }
+        } catch (e) {
+          if (e.name !== "AbortError") console.error(e);
+          return [];
+        }
       }
 
-      // The Met — vali juhuslik alam-hulk pildiga objektidest
-      async function fetchMet(limit = 30, signal) {
+      // The Met — ID-de cache; lae detailid paralleelselt ja peatu 6 korral
+      async function fetchMet(limit = 6, signal) {
         try {
-          const s = await fetch("https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=%2A", { signal });
-          if (!s.ok) throw new Error("MET search error");
-          const js = await s.json();
-          const ids = (js.objectIDs || []);
-          if (!ids.length) return [];
-          ids.sort(() => Math.random() - 0.5);               // sega
-          const pick = ids.slice(0, Math.min(limit, 200));    // vali kuni 200-st
+          if (!metObjectIDsCache) {
+            const s = await fetchWithTimeout(
+              "https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*",
+              { signal, timeoutMs: 6000 }
+            );
+            if (!s.ok) throw new Error("MET search error");
+            const js = await s.json();
+            metObjectIDsCache = Array.isArray(js.objectIDs) ? js.objectIDs : [];
+          }
+          if (!metObjectIDsCache.length) return [];
 
-          const items = await Promise.all(
-            pick.map((id) =>
-              fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`, { signal })
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null)
-            )
-          );
+          const ids = metObjectIDsCache.slice();
+          ids.sort(() => Math.random() - 0.5);
 
-          return items
-            .filter(Boolean)
-            .filter((o) => o.primaryImageSmall || o.primaryImage)
-            .map((o) => ({
-              id: `met_${o.objectID}`,
-              title: o.title || "Untitled",
-              imageUrl: o.primaryImageSmall || o.primaryImage,
-              imageUrlLarge: o.primaryImage || o.primaryImageSmall,
-              artist: o.artistDisplayName || "Artist Unknown",
-              date: o.objectDate || "",
-              medium: o.medium || "",
-              description: o.creditLine || "",
-              license: "Open Access"
-            }));
-        } catch (e) { if (e.name !== "AbortError") console.error(e); return []; }
+          const want = Math.max(6, limit);
+          const maxTries = 60;
+          const concurrency = 8;
+          const picked = [];
+          let index = 0;
+
+          async function worker() {
+            while (picked.length < want && index < Math.min(ids.length, maxTries)) {
+              const id = ids[index++];
+              try {
+                const r = await fetchWithTimeout(
+                  `https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`,
+                  { signal, timeoutMs: 4500 }
+                );
+                if (r.ok) {
+                  const o = await r.json();
+                  const imgSmall = o.primaryImageSmall || null;
+                  const imgLarge = o.primaryImage || null;
+                  if (imgSmall || imgLarge) {
+                    picked.push({
+                      id: `met_${o.objectID}`,
+                      title: cleanText(o.title || "Untitled"),
+                      imageUrl: imgSmall || imgLarge,
+                      imageUrlLarge: imgLarge || imgSmall,
+                      artist: cleanText(o.artistDisplayName || "Artist Unknown"),
+                      date: cleanText(o.objectDate || ""),
+                      medium: cleanText(o.medium || ""),
+                      description: cleanText(o.creditLine || ""),
+                      license: "Open Access"
+                    });
+                  }
+                }
+              } catch {
+                // ignoreeri aeglaseid/katkiseid vastuseid
+              }
+            }
+          }
+
+          const runners = Array.from({ length: concurrency }, () => worker());
+          await Promise.all(runners);
+
+          return picked.slice(0, want);
+        } catch (e) {
+          if (e.name !== "AbortError") console.error(e);
+          return [];
+        }
       }
 
       async function fetchArtworksBatch(signal) {
-        return provider === "met" ? fetchMet(30, signal) : fetchAIC(30, signal);
-        // Tagastab ~30 kandidaati, millest valime 6.
+        if (provider === "met") return fetchMet(6, signal);  // kohe kuni 6
+        return fetchAIC(30, signal);                         // AIC: vali hiljem 6
       }
 
       /***********************
-       * 4) Galerii loogika — alati 6; Inspire Me asendab
+       * 4) Galerii loogika — alati 6; “Inspire Me” asendab
        ***********************/
       const contentEl = document.querySelector(".content");
       const inspireBtn = document.querySelector(".inspire-btn");
@@ -316,12 +473,19 @@
         const esc = (s) =>
           String(s ?? "").replace(/[&<>\"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] || c));
 
+        const title = cleanText(artwork.title);
+        const artist = cleanText(artwork.artist || "Artist Unknown");
+        const date = cleanText(artwork.date || "");
+        const medium = cleanText(artwork.medium || "");
+        const desc = cleanText(artwork.description || "");
+        const license = cleanText(artwork.license || "");
+
         const html = `<!DOCTYPE html>
 <html lang="et">
   <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-    <title>${esc(artwork.title)}</title>
+    <title>${esc(title)}</title>
     <style>
       body { font-family: Arial, sans-serif; background:#f5f5f5; color:#333; margin:0; padding:20px; }
       .wrap { max-width:1100px; margin:0 auto; }
@@ -334,13 +498,13 @@
   </head>
   <body>
     <div class="wrap">
-      <img src="${esc(fullImageUrl)}" alt="${esc(artwork.title)}"/>
-      <h1>${esc(artwork.title)}</h1>
-      <div class="meta">${esc(artwork.artist || "Artist Unknown")}</div>
-      <div class="meta">${esc(artwork.date || "")}</div>
-      <div class="meta">${esc(artwork.medium || "")}</div>
-      <div class="desc">${esc(artwork.description || "")}</div>
-      <div class="meta" style="margin-top:12px;">${esc(artwork.license || "")}</div>
+      <img src="${esc(fullImageUrl)}" alt="${esc(title)}"/>
+      <h1>${esc(title)}</h1>
+      <div class="meta">${esc(artist)}</div>
+      <div class="meta">${esc(date)}</div>
+      <div class="meta">${esc(medium)}</div>
+      <div class="desc">${esc(desc)}</div>
+      <div class="meta" style="margin-top:12px;">${esc(license)}</div>
       <a class="btn" href="${esc(fullImageUrl)}" target="_blank" rel="noopener noreferrer">Open image in original size</a>
     </div>
   </body>
@@ -357,22 +521,37 @@
         img.loading = "eager";
         img.fetchPriority = "high";
         img.alt = artwork.title;
-        img.src = artwork.imageUrl; // KOHE nähtav
+        img.src = artwork.imageUrl; // kohe nähtav
 
-        const detailUrl = makeDetailPageUrl(artwork, artwork.imageUrlLarge || artwork.imageUrl);
+        const detailUrl = makeDetailPageUrl(
+          artwork,
+          artwork.imageUrlLarge || artwork.imageUrl
+        );
         const link = document.createElement("a");
         link.href = detailUrl;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.appendChild(img);
 
+        // Väldi innerHTML’i — kasuta textContent’i
         const info = document.createElement("div");
         info.className = "artwork-info";
-        info.innerHTML = `
-          <h3>${artwork.title}</h3>
-          <p>${artwork.artist || "Artist Unknown"}</p>
-          <p style="color:#888; font-size:0.8rem; margin-top:5px;">${artwork.date || ""}</p>
-        `;
+
+        const h3 = document.createElement("h3");
+        h3.textContent = artwork.title;
+
+        const pArtist = document.createElement("p");
+        pArtist.textContent = artwork.artist || "Artist Unknown";
+
+        const pDate = document.createElement("p");
+        pDate.style.color = "#888";
+        pDate.style.fontSize = "0.8rem";
+        pDate.style.marginTop = "5px";
+        pDate.textContent = artwork.date || "";
+
+        info.appendChild(h3);
+        info.appendChild(pArtist);
+        info.appendChild(pDate);
 
         card.appendChild(link);
         card.appendChild(info);
@@ -380,16 +559,18 @@
       }
 
       function renderExactlySix(candidates) {
-        // vali iga kord 6 juhuslikku, et vahetus oleks selgelt nähtav
-        const shuffled = candidates.slice().sort(() => Math.random() - 0.5);
-        const six = shuffled.slice(0, 6);
+        const list = provider === "met"
+          ? candidates.slice(0, 6) // Met tagastab kuni 6 juba
+          : candidates.slice().sort(() => Math.random() - 0.5).slice(0, 6); // AIC valime 6
+
         contentEl.innerHTML = "";
-        six.forEach((art) => contentEl.appendChild(makeCard(art)));
+        list.forEach((art) => contentEl.appendChild(makeCard(art)));
       }
 
       async function refreshSix() {
         if (isLoading) return;
         isLoading = true;
+
         try {
           if (currentAbort) currentAbort.abort();
           currentAbort = new AbortController();
@@ -400,6 +581,7 @@
             showError("No images found. Try again.");
             return;
           }
+
           renderExactlySix(batch);
           showNotification(successNotification, 1200);
         } catch (e) {
@@ -435,7 +617,7 @@
           refreshSix();
           animationPage.style.display = "none";
         }, 1000);
-      }, 7200);
+      }, 7100);
     </script>
   </body>
 </html>
