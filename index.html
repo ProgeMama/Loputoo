@@ -357,7 +357,7 @@
             try {
                 showNotification(document.getElementById('loadingNotification'), 0);
                 const offset = Math.floor(Math.random() * 50000);
-                const newArtworks = await fetchArtworks(offset, 108);
+                const newArtworks = await fetchArtworks(offset, 100);
                 const uniqueArtworks = newArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
                 allArtworks = uniqueArtworks;
                 if (uniqueArtworks.length === 0) {
@@ -401,7 +401,7 @@
             if (isLoading) return;
             let availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
             // Kui kõik 100 pilti on läbi vaadatud, lae kohe järgmised 100 ja proovi uuesti
-            if (availableArtworks.length < 6 && allArtworks.length >= 108) {
+            if (availableArtworks.length < 6 && allArtworks.length >= 100) {
                 await loadNewArtworks();
                 availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
                 if (availableArtworks.length < 6) {
