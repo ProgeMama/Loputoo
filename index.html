@@ -401,11 +401,11 @@
             if (isLoading) return;
             let availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
             // Kui kõik 100 pilti on läbi vaadatud, lae kohe järgmised 100 ja proovi uuesti
-            if (availableArtworks.length < 6 && allArtworks.length >= 100) {
+            if (availableArtworks.length < 6 && allArtworks.length >= 108) {
                 await loadNewArtworks();
                 availableArtworks = allArtworks.filter(artwork => !viewedArtworks.has(artwork.id));
                 if (availableArtworks.length < 6) {
-                    showError('Ei leitud uusi pilte. Proovi uuesti.');
+                    showError('No new images found. Please try again.');
                     return;
                 }
             } else if (availableArtworks.length < 6) {
