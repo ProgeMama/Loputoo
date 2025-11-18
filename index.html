@@ -2,17 +2,17 @@
 <html lang="et">
 <head>
   <!--
-  Inspiratsioon ja juhendamine / inspiration and guidance:
+  Inspiratsioon ja juhendamine / Inspiration and guidance:
 
   VIDEOD
   1. YouTube video: https://www.youtube.com/watch?v=oTahLEX3NXo
-  2. YouTube video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+  2. YouTube video: https://www.youtube.com/watch?v=6G6Z4qS9I8o
 
   API-d ja dokumentatsioon
   - Art Institute of Chicago (AIC) API:
-    Docs: https://api.artic.edu/docs/#introduction
+    Docs: https://api.artic.edu/docs
     Search endpoint (POST): https://api.artic.edu/api/v1/artworks/search
-    IIIF pildi baas: https://www.artic.edu/iiif/2/{image_id}/full/843,/0/default.jpg
+    IIIF pildi baas: https://www.artic.edu/iiif/2/{image_id}/full/843,/0/default.jpg (kaardil kasutan 512, detailis 1200)
 
   - The Met Collection API:
     Docs: https://metmuseum.github.io/
@@ -21,12 +21,18 @@
 
   - Cleveland Museum of Art Open Access API:
     Docs: https://openaccess-api.clevelandart.org/
-    Otsing (GET): https://openaccess-api.clevelandart.org/api/artworks/?has_image=1&cc0=true&limit=100
+    Otsing (GET): https://openaccess-api.clevelandart.org/api/artworks/?has_image=1&cc0=true&limit=36
   -->
 
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Resonant Art Gallery</title>
+
+  <!-- Preconnect kiiremaks handshake'iks -->
+  <link rel="preconnect" href="https://api.artic.edu" crossorigin>
+  <link rel="preconnect" href="https://www.artic.edu" crossorigin>
+  <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin>
+  <link rel="preconnect" href="https://openaccess-api.clevelandart.org" crossorigin>
 
   <!-- Kirjastiilid: Foldit pealkirjale, ülejäänu nagu algselt -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
@@ -37,7 +43,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ORIGINAAL: body-süsteem Franklin Gothic/Arial Narrow */
+    /* Originaal: body-süsteem Franklin Gothic/Arial Narrow */
     body {
       font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
       overflow-x: hidden;
@@ -63,7 +69,7 @@
       padding: 20px;
     }
 
-    /* ORIGINAAL: h1 kasutab Foldit */
+    /* Originaal: h1 kasutab Foldit */
     h1 {
       font-family: "Foldit", sans-serif;
       font-optical-sizing: auto;
@@ -126,7 +132,7 @@
     .loading { background-color: rgb(171,171,171); }
     .success { background-color: #65105b; }
     .error   { background-color: #dc3545; }
-    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1); } }
 
     /* Skeletilaadur */
     .skeleton {
@@ -214,7 +220,7 @@
 
   <script>
     /***********************
-     * 1) Splash animatsioon
+     * 1) Splash animatsioon (tähesadu ~4s)
      ***********************/
     const canvas = document.getElementById('canvas1');
     const ctx = canvas.getContext('2d');
@@ -259,7 +265,10 @@
     }
     const effect = new Effect(canvas.width, canvas.height);
     let lastTime = 0; const fps = 60; const nextFrame = 1000 / fps; let timer = 0;
+    let splashRunning = true;
+
     function animate(timeStamp) {
+      if (!splashRunning) return;
       const deltaTime = timeStamp - lastTime; lastTime = timeStamp;
       if (timer > nextFrame) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
@@ -273,6 +282,7 @@
       requestAnimationFrame(animate);
     }
     animate(0);
+
     window.addEventListener('resize', () => {
       canvas.width = window.innerWidth; canvas.height = window.innerHeight;
       effect.resize(canvas.width, canvas.height);
@@ -305,16 +315,18 @@
     }
 
     /***********************
-     * 3) Andmepakkujad (adapterid)
+     * 3) Andmepakkujad (adapterid) – optimeeritud suurused
      ***********************/
     let provider = 'aic';
+    let currentAbort = null;
 
-    // AIC: POST /api/v1/artworks/search (public domain + image_id)
-    async function fetchAIC(offset = 0, limit = 100) {
+    // AIC: väiksemad pildid kaardil 512, detailis 1200
+    async function fetchAIC(offset = 0, limit = 36, signal) {
       try {
         const resp = await fetch('https://api.artic.edu/api/v1/artworks/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal,
           body: JSON.stringify({
             limit, offset,
             fields: [
@@ -338,27 +350,26 @@
           .map(a => ({
             id: `aic_${a.id}`,
             title: a.title || 'Untitled',
-            imageUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/843,/0/default.jpg`,
-            imageUrlLarge: `https://www.artic.edu/iiif/2/${a.image_id}/full/1686,/0/default.jpg`,
+            imageUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/512,/0/default.jpg`,
+            imageUrlLarge: `https://www.artic.edu/iiif/2/${a.image_id}/full/1200,/0/default.jpg`,
             artist: a.artist_display || 'Artist Unknown',
             date: a.date_display || '',
             medium: a.medium_display || '',
             description: a.description || '',
             license: 'Open Access / Public Domain'
           }));
-      } catch (e) { console.error(e); return []; }
+      } catch (e) { if (e.name !== 'AbortError') console.error(e); return []; }
     }
 
-    // The Met: GET search -> objectIDs -> GET objects/{id}
-    async function fetchMet(offset = 0, limit = 100) {
+    async function fetchMet(offset = 0, limit = 36, signal) {
       try {
-        const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*');
+        const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*', { signal });
         if (!search.ok) throw new Error('MET search error');
         const s = await search.json();
         const ids = (s.objectIDs || []).sort(() => Math.random() - 0.5).slice(offset, offset + limit);
         const items = await Promise.all(
           ids.map(id =>
-            fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`)
+            fetch(`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`, { signal })
               .then(r => r.ok ? r.json() : null)
               .catch(() => null)
           )
@@ -369,7 +380,7 @@
           .map(o => ({
             id: `met_${o.objectID}`,
             title: o.title || 'Untitled',
-            imageUrl: o.primaryImageSmall,
+            imageUrl: o.primaryImageSmall,           // Met annab väikse eelvaate
             imageUrlLarge: o.primaryImage || o.primaryImageSmall,
             artist: o.artistDisplayName || 'Artist Unknown',
             date: o.objectDate || '',
@@ -377,13 +388,12 @@
             description: o.creditLine || '',
             license: 'Open Access (varies; many CC0)'
           }));
-      } catch (e) { console.error(e); return []; }
+      } catch (e) { if (e.name !== 'AbortError') console.error(e); return []; }
     }
 
-    // Cleveland Museum of Art: has_image=1 & cc0=true
-    async function fetchCMA(offset = 0, limit = 100) {
+    async function fetchCMA(offset = 0, limit = 36, signal) {
       try {
-        const resp = await fetch(`https://openaccess-api.clevelandart.org/api/artworks/?has_image=1&cc0=true&limit=${limit}&skip=${offset}`);
+        const resp = await fetch(`https://openaccess-api.clevelandart.org/api/artworks/?has_image=1&cc0=true&limit=${limit}&skip=${offset}`, { signal });
         if (!resp.ok) throw new Error('CMA error');
         const data = await resp.json();
         return (data.data || [])
@@ -391,7 +401,7 @@
           .map(o => ({
             id: `cma_${o.id}`,
             title: o.title || 'Untitled',
-            imageUrl: o.images.web.url,
+            imageUrl: o.images.web.url,              // piisav kaardile
             imageUrlLarge: (o.images?.print?.url) || o.images.web.url,
             artist: (o.creators && o.creators[0]?.description) || 'Artist Unknown',
             date: o.creation_date || '',
@@ -399,17 +409,17 @@
             description: o.wall_description || '',
             license: 'CC0'
           }));
-      } catch (e) { console.error(e); return []; }
+      } catch (e) { if (e.name !== 'AbortError') console.error(e); return []; }
     }
 
-    async function fetchArtworks(offset = 0, limit = 100) {
-      if (provider === 'met') return fetchMet(offset, limit);
-      if (provider === 'cma') return fetchCMA(offset, limit);
-      return fetchAIC(offset, limit);
+    async function fetchArtworks(offset = 0, limit = 36, signal) {
+      if (provider === 'met') return fetchMet(offset, limit, signal);
+      if (provider === 'cma') return fetchCMA(offset, limit, signal);
+      return fetchAIC(offset, limit, signal);
     }
 
     /***********************
-     * 4) Galerii loogika
+     * 4) Galerii loogika – vooglaadimine
      ***********************/
     const contentEl      = document.querySelector('.content');
     const inspireBtn     = document.querySelector('.inspire-btn');
@@ -417,10 +427,11 @@
     const loadMoreBtn    = document.getElementById('loadMoreBtn');
     const providerSelect = document.getElementById('providerSelect');
 
-    let allArtworks = [];
-    let viewedArtworks = new Set();
+    let allArtworks = [];           // viimane partii
+    let viewedArtworks = new Set(); // nähtud ID-d
     let isLoading = false;
 
+    // LocalStorage (kerge cache sessioonis)
     function saveState() {
       localStorage.setItem('viewedArtworks', JSON.stringify([...viewedArtworks]));
       localStorage.setItem('provider', provider);
@@ -441,45 +452,33 @@
       loadMoreBtn.disabled = true;
 
       try {
+        // tühista eelmine kui olemas
+        if (currentAbort) currentAbort.abort();
+        currentAbort = new AbortController();
+
         showNotification(loadingNotification, 0);
         const offset = Math.floor(Math.random() * 50000);
-        const newArtworks = await fetchArtworks(offset, 100);
+        const newArtworks = await fetchArtworks(offset, 36, currentAbort.signal);
+
         const uniqueArtworks = newArtworks.filter(a => !viewedArtworks.has(a.id));
         allArtworks = uniqueArtworks;
 
         if (uniqueArtworks.length === 0) showError('No new images found. Please try again.');
         else showNotification(successNotification);
       } catch (error) {
-        showError('Failed to load new images.');
+        if (error?.name !== 'AbortError') showError('Failed to load new images.');
       } finally {
         isLoading = false;
         inspireBtn.disabled = false;
         loadMoreBtn.disabled = false;
+        currentAbort = null;
       }
     }
 
-    async function displayArtworks({ append = false } = {}) {
-      if (isLoading) return;
-
-      let availableArtworks = allArtworks.filter(a => !viewedArtworks.has(a.id));
-
-      if (availableArtworks.length < 6) {
-        await loadNewArtworks();
-        availableArtworks = allArtworks.filter(a => !viewedArtworks.has(a.id));
-        if (availableArtworks.length === 0) {
-          showError('No new images found. Please try again.');
-          return;
-        }
-      }
-
-      if (!append) contentEl.innerHTML = '';
-
-      const selected = availableArtworks
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 6);
-
-      selected.forEach(artwork => {
+    function renderCards(batch) {
+      batch.forEach(artwork => {
         viewedArtworks.add(artwork.id);
+
         const card = document.createElement('div');
         card.className = 'artwork-card';
         card.tabIndex = 0;
@@ -503,9 +502,12 @@
         `;
         card.appendChild(info);
 
-        // Pilt (onload enne src)
+        // Pilt – kerge prioriteet
         const img = new Image();
         img.loading = 'lazy';
+        img.decoding = 'async';
+        // fetchPriority pole kõikjal toetatud, aga ohutu lisada
+        img.fetchPriority = 'low';
         img.alt = artwork.title;
         img.onload = () => { skeleton.replaceWith(img); };
         img.onerror = () => {
@@ -528,6 +530,27 @@
       saveState();
     }
 
+    async function displayArtworks({ append = false } = {}) {
+      if (isLoading && !append) return;
+
+      // vali kuni 6 uut nähtamatut
+      let available = allArtworks.filter(a => !viewedArtworks.has(a.id));
+      if (available.length < 6) {
+        await loadNewArtworks();
+        available = allArtworks.filter(a => !viewedArtworks.has(a.id));
+        if (available.length === 0) {
+          showError('No new images found. Please try again.');
+          return;
+        }
+      }
+
+      if (!append) contentEl.innerHTML = '';
+
+      // ära sega juhusliku sortimisega esimese maali – kiirem reflow
+      const selected = available.slice(0, 6);
+      renderCards(selected);
+    }
+
     /***********************
      * 5) Detailvaate modaal
      ***********************/
@@ -546,6 +569,8 @@
 
       imgEl.src = '';
       imgEl.alt = esc(artwork.title);
+      imgEl.decoding = 'async';
+      imgEl.fetchPriority = 'high';
       titleEl.textContent  = esc(artwork.title);
       artistEl.textContent = esc(artwork.artist || 'Artist Unknown');
       dateEl.textContent   = esc(artwork.date || '');
@@ -582,18 +607,20 @@
     resetBtn.addEventListener('click', resetHistory);
     loadMoreBtn.addEventListener('click', () => displayArtworks({ append: true }));
 
-    // Näita galerii pärast splash’i
+    // 4 sekundi splash, siis galerii
     setTimeout(() => {
       const animationPage = document.getElementById('animation-page');
       const galleryPage = document.getElementById('gallery-page');
+      splashRunning = false;                 // peata animatsioon
       animationPage.classList.add('fade-out');
       setTimeout(() => {
         animationPage.style.display = 'none';
         galleryPage.style.display = 'block';
         loadState();
+        // koorma partii ja näita kohe 6 kaarti
         loadNewArtworks().then(() => displayArtworks({ append: false }));
       }, 1000);
-    }, 2000); /* 2s splash */
+    }, 4000); // vähemalt 4 s
   </script>
 </body>
 </html>
