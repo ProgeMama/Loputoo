@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <html lang="et">
 <head>
-  <!-- Inspiratsioon (kommentaaris)
-  1) Art Institute of Chicago API: https://api.artic.edu/docs/#quick-start
-  2) The Met Collection API: https://metmuseum.github.io/
-  3) Cleveland Open Access API: https://openaccess-api.clevelandart.org/
-  -->
+   <!--
+    Inspiratsioon ja juhendamine/ Inspiration and guidance:
+    1. YouTube video: https://www.youtube.com/watch?v=f5ZswIE_SgY&list=PLtCYmFHvuikasAlVxRgDlSIHXzOzU05Gx&index=8
+    2. YouTube video: https://www.youtube.com/watch?v=z3iKpCNlWU8&list=PLtCYmFHvuikasAlVxRgDlSIHXzOzU05Gx&index=8
+    3. Art Institute of Chicago API dokumentatsioon: https://api.artic.edu/docs/#introduction
+    4. The Met Collection API: https://metmuseum.github.io/
+    5. Cleveland Open Access API: https://openaccess-api.clevelandart.org/
+    4.https://apps.abacus.ai/
+    -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Resonant Art Gallery</title>
 
-  <!-- Google Fonts (Foldit pealkirjaks, Inter sisutekstiks) -->
+  <!-- Fondid (soovi korral muuda) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400;600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -114,7 +118,24 @@
     }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-    /* Vähendatud liikumise eelistus */
+    /* Detailvaate modaal */
+    #detailModal {
+      display:none; position:fixed; inset:0; z-index:2000;
+      background:rgba(0,0,0,.65); align-items:center; justify-content:center; padding:24px;
+    }
+    #detailCard {
+      position: relative;
+      max-width: 960px; width: 100%;
+      background:#fff; border-radius:12px; overflow:auto;
+      max-height:90vh; padding:20px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+    }
+    #detailClose {
+      position:absolute; right:28px; top:28px;
+      background:#222; color:#fff; border:0; border-radius:999px;
+      width:36px; height:36px; cursor:pointer; font-size:20px; line-height:36px;
+    }
+
+    /* Vähendatud liikumine */
     @media (prefers-reduced-motion: reduce) {
       #animation-page { transition: none; }
       .artwork-card { transition: box-shadow 0.2s ease; }
@@ -156,6 +177,20 @@
 
     <div style="text-align:center;margin:20px 0;">
       <button id="loadMoreBtn" class="inspire-btn" type="button" aria-label="Load more artworks">Load more</button>
+    </div>
+  </div>
+
+  <!-- Detailvaate modaal -->
+  <div id="detailModal" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-describedby="detailDesc">
+    <div id="detailCard">
+      <button id="detailClose" aria-label="Sulge">×</button>
+      <img id="detailImg" alt="" style="width:100%;height:auto;border-radius:8px;margin-bottom:16px;display:block;">
+      <h2 id="detailTitle" style="margin:0 0 8px 0;font:600 1.4rem/1.2 Inter, Arial;"></h2>
+      <div id="detailArtist" style="color:#555;margin:2px 0;"></div>
+      <div id="detailDate" style="color:#555;margin:2px 0;"></div>
+      <div id="detailMedium" style="color:#555;margin:2px 0;"></div>
+      <div id="detailDesc" style="color:#333;margin-top:10px;"></div>
+      <div id="detailLicense" style="color:#2e7d32;margin-top:10px;font-size:.9rem;"></div>
     </div>
   </div>
 
@@ -299,7 +334,6 @@
     // The Met: GET search -> objectIDs -> GET objects/{id}
     async function fetchMet(offset = 0, limit = 100) {
       try {
-        // hasImages=true, q=* (kõik sobivad)
         const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*');
         if (!search.ok) throw new Error('MET search error');
         const s = await search.json();
@@ -323,7 +357,7 @@
             date: o.objectDate || '',
             medium: o.medium || '',
             description: o.creditLine || '',
-            license: 'Open Access (paljud CC0)'
+            license: 'Open Access (varies; many CC0)'
           }));
       } catch (e) { console.error(e); return []; }
     }
@@ -359,16 +393,15 @@
     /***********************
      * 4) Galerii loogika
      ***********************/
-    const contentEl   = document.querySelector('.content');
-    const inspireBtn  = document.querySelector('.inspire-btn');
-    const resetBtn    = document.querySelector('.reset-btn');
-    const loadMoreBtn = document.getElementById('loadMoreBtn');
+    const contentEl      = document.querySelector('.content');
+    const inspireBtn     = document.querySelector('.inspire-btn');
+    const resetBtn       = document.querySelector('.reset-btn');
+    const loadMoreBtn    = document.getElementById('loadMoreBtn');
     const providerSelect = document.getElementById('providerSelect');
 
     let allArtworks = [];           // viimati laetud partii
     let viewedArtworks = new Set(); // nähtud ID-d
     let isLoading = false;
-    let currentAbort = null;        // ruum tulevasteks tühistamisteks (vajadusel)
 
     // LocalStorage
     function saveState() {
@@ -395,7 +428,7 @@
 
       try {
         showNotification(loadingNotification, 0);
-        // juhuslik offset, et varieerida (Met/CMA ignoreerivad osaliselt, AIC-l toimib)
+        // juhuslik offset mitmekesisuseks
         const offset = Math.floor(Math.random() * 50000);
         const newArtworks = await fetchArtworks(offset, 100);
 
@@ -409,7 +442,7 @@
           showNotification(successNotification);
         }
       } catch (error) {
-        if (error?.name !== 'AbortError') showError('Failed to load new images.');
+        showError('Failed to load new images.');
       } finally {
         isLoading = false;
         inspireBtn.disabled = false;
@@ -462,11 +495,10 @@
         `;
         card.appendChild(info);
 
-        // Pilt (lazy)
+        // Pilt (pane onload enne src)
         const img = new Image();
         img.loading = 'lazy';
         img.alt = artwork.title;
-        img.src = artwork.imageUrl;
         img.onload = () => { skeleton.replaceWith(img); };
         img.onerror = () => {
           skeleton.style.background = '#eee';
@@ -477,6 +509,7 @@
           skeleton.style.color = '#999';
           skeleton.style.fontSize = '0.9rem';
         };
+        img.src = artwork.imageUrl;
 
         card.addEventListener('click', () => openDetailView(artwork));
         card.addEventListener('keypress', (e) => { if (e.key === 'Enter') openDetailView(artwork); });
@@ -487,37 +520,45 @@
       saveState();
     }
 
+    /***********************
+     * 5) Detailvaate modaal
+     ***********************/
     function openDetailView(artwork) {
-      const detailWindow = window.open('', '_blank', 'noopener,noreferrer');
-      const imageUrl = artwork.imageUrlLarge || artwork.imageUrl;
+      const modal = document.getElementById('detailModal');
+      const imgEl = document.getElementById('detailImg');
+      const titleEl = document.getElementById('detailTitle');
+      const artistEl = document.getElementById('detailArtist');
+      const dateEl = document.getElementById('detailDate');
+      const mediumEl = document.getElementById('detailMedium');
+      const descEl = document.getElementById('detailDesc');
+      const licEl = document.getElementById('detailLicense');
 
-      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
-        ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
-      );
+      const esc = (s) => String(s ?? '');
+      const src = artwork.imageUrlLarge || artwork.imageUrl;
 
-      detailWindow.document.write(`<!DOCTYPE html>
-<html lang="et">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>${esc(artwork.title)}</title>
-  <style>
-    body { font-family: Inter, Arial, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
-    img { max-width: 100%; border-radius: 8px; margin-bottom: 20px; display:block; }
-    h1 { color: #333; font-size: 1.8rem; margin: 0 0 10px; }
-    .meta { color:#555; margin: 4px 0; }
-  </style>
-</head>
-<body>
-  <img src="${esc(imageUrl)}" alt="${esc(artwork.title)}" />
-  <h1>${esc(artwork.title)}</h1>
-  <div class="meta">${esc(artwork.artist || 'Artist Unknown')}</div>
-  <div class="meta">${esc(artwork.date || '')}</div>
-  <div class="meta">${esc(artwork.medium || '')}</div>
-  <div style="margin-top:12px;">${esc(artwork.description || '')}</div>
-  <div style="margin-top:12px;color:#2e7d32;font-size:0.9rem;">${esc(artwork.license || '')}</div>
-</body>
-</html>`);
+      imgEl.src = '';
+      imgEl.alt = esc(artwork.title);
+      titleEl.textContent = esc(artwork.title);
+      artistEl.textContent = esc(artwork.artist || 'Artist Unknown');
+      dateEl.textContent = esc(artwork.date || '');
+      mediumEl.textContent = esc(artwork.medium || '');
+      descEl.textContent = esc(artwork.description || '');
+      licEl.textContent = esc(artwork.license || '');
+
+      const probe = new Image();
+      probe.onload = () => { imgEl.style.display = 'block'; imgEl.src = src; };
+      probe.onerror = () => { imgEl.style.display = 'none'; };
+      probe.src = src;
+
+      modal.style.display = 'flex';
+
+      function close() {
+        modal.style.display = 'none';
+        imgEl.style.display = 'block';
+      }
+      document.getElementById('detailClose').onclick = close;
+      modal.onclick = (e) => { if (e.target === modal) close(); };
+      document.onkeydown = (e) => { if (e.key === 'Escape') close(); };
     }
 
     function resetHistory() {
@@ -548,7 +589,7 @@
         loadState();
         loadNewArtworks().then(() => displayArtworks({ append: false }));
       }, 1000);
-    }, 2000); /* Lühendasin 8s -> 2s */
+    }, 2000); /* 2s splash */
   </script>
 </body>
 </html>
