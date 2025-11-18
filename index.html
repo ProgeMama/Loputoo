@@ -1,41 +1,39 @@
 <!DOCTYPE html>
 <html lang="et">
 <head>
-  <!-- Inspiratsioon ja juhendamine (viited jäetud kommentaarina)
-  1. YouTube video: https://youtu.be/... 
-  2. YouTube video: https://youtu.be/...
-  3. Art Institute of Chicago API: https://api.artic.edu/docs/
-  4. https://apps.abacus.ai/
+  <!-- Inspiratsioon (kommentaaris)
+  1) Art Institute of Chicago API: https://api.artic.edu/docs/#quick-start
+  2) The Met Collection API: https://metmuseum.github.io/
+  3) Cleveland Open Access API: https://openaccess-api.clevelandart.org/
   -->
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Resonant Art Gallery</title>
 
-  <!-- Fondid (soovi korral võid lisada teisi kirjatüüpe) -->
+  <!-- Google Fonts (Foldit pealkirjaks, Inter sisutekstiks) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400..900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400;600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
   <style>
-    /* Üldine reset */
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       overflow-x: hidden;
       margin: 0;
       background: black;
+      color: #333;
     }
 
     /* Splash-animatsioon */
     #animation-page {
-      position: fixed; top: 0; left: 0;
-      width: 100%; height: 100%;
+      position: fixed; inset: 0;
       z-index: 1000; background: black;
       transition: opacity 1s;
     }
     #animation-page.fade-out { opacity: 0; }
-    #canvas1 { position: absolute; top: 0; left: 0; }
+    #canvas1 { position: absolute; inset: 0; }
 
     /* Galerii */
     #gallery-page {
@@ -46,127 +44,81 @@
     }
 
     h1 {
-      font-family: "Foldit", sans-serif;
-      font-optical-sizing: auto;
-      font-weight: 400;
-      font-style: normal;
-      color: #333;
+      font-family: "Foldit", Inter, Arial, sans-serif;
+      font-weight: 600;
+      color: #222;
       margin-bottom: 1.5rem;
-      font-size: 3.2rem;
+      font-size: 3rem;
       text-align: center;
+      letter-spacing: 0.5px;
     }
 
     .button-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin: 20px 0;
-      justify-content: center;
-      align-items: center;
+      display: flex; flex-wrap: wrap; gap: 12px;
+      margin: 20px 0; justify-content: center; align-items: center;
     }
 
     select, .inspire-btn, .reset-btn, #loadMoreBtn {
-      padding: 12px 16px;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: all 0.25s ease;
-      background: white;
-      color: #333;
+      padding: 12px 16px; border: none; border-radius: 12px;
+      font-size: 1rem; cursor: pointer; transition: all 0.25s ease;
+      background: white; color: #333;
     }
 
-    select {
-      border: 1px solid #ccc;
-      min-width: 260px;
-    }
+    select { border: 1px solid #ccc; min-width: 260px; }
 
     .inspire-btn, #loadMoreBtn { background-color: #65105b; color: white; }
-    .inspire-btn:hover, #loadMoreBtn:hover { background-color: rgb(171, 171, 171); color: #111; }
+    .inspire-btn:hover, #loadMoreBtn:hover { background-color: rgb(171,171,171); color: #111; }
 
     .reset-btn { background-color: #064215; color: white; }
-    .reset-btn:hover { background-color: rgb(171, 171, 171); color: #111; }
+    .reset-btn:hover { background-color: rgb(171,171,171); color: #111; }
 
     .content {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 25px;
-      max-width: 1200px;
-      width: 100%;
-      margin: 0 auto;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 25px; max-width: 1200px; width: 100%; margin: 0 auto;
     }
-
-    @media (max-width: 900px) {
-      .content { grid-template-columns: repeat(2, 1fr); }
-    }
-    @media (max-width: 600px) {
-      .content { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 900px) { .content { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px) { .content { grid-template-columns: 1fr; } }
 
     .artwork-card {
-      background: white;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+      background: white; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
       transition: transform 0.3s ease, box-shadow 0.3s ease;
-      cursor: pointer;
-      outline: none;
+      cursor: pointer; outline: none;
     }
     .artwork-card:hover, .artwork-card:focus-visible {
       transform: translateY(-5px);
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
     .artwork-card img {
-      width: 100%;
-      height: 300px;
-      object-fit: cover;
-      display: block;
+      width: 100%; height: 300px; object-fit: cover; display: block;
     }
     .artwork-info { padding: 15px; }
-    .artwork-info h3 {
-      margin: 0 0 8px 0;
-      font-size: 1.1rem; color: #333;
-    }
-    .artwork-info p {
-      margin: 0;
-      font-size: 0.9rem;
-      color: #666;
-    }
+    .artwork-info h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #222; }
+    .artwork-info p { margin: 0; font-size: 0.9rem; color: #666; }
 
     .notification {
       position: fixed; top: 20px; right: 20px;
       padding: 15px 25px; border-radius: 12px; color: white;
-      display: none;
-      animation: slideIn 0.5s ease;
-      z-index: 1000;
+      display: none; animation: slideIn 0.5s ease; z-index: 1000;
     }
-    .loading { background-color: rgb(171, 171, 171); }
+    .loading { background-color: rgb(171,171,171); }
     .success { background-color: #65105b; }
-    .error { background-color: #dc3545; }
-
-    @keyframes slideIn {
-      from { transform: translateX(100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
+    .error   { background-color: #dc3545; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
     /* Skeletilaadur */
     .skeleton {
-      width: 100%;
-      height: 300px;
-      border-radius: 0;
+      width: 100%; height: 300px; border-radius: 0;
       background: linear-gradient(90deg, #eee 25%, #ddd 37%, #eee 63%);
-      background-size: 400% 100%;
-      animation: shimmer 1.2s infinite;
+      background-size: 400% 100%; animation: shimmer 1.2s infinite;
     }
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-    /* eelistus: vähendatud liikumine */
+    /* Vähendatud liikumise eelistus */
     @media (prefers-reduced-motion: reduce) {
       #animation-page { transition: none; }
       .artwork-card { transition: box-shadow 0.2s ease; }
+      .skeleton { animation: none; }
     }
   </style>
 </head>
@@ -177,7 +129,7 @@
     <canvas id="canvas1"></canvas>
   </div>
 
-  <!-- Galerii leht -->
+  <!-- Galerii -->
   <div id="gallery-page">
     <h1>Resonant Art Gallery</h1>
 
@@ -203,9 +155,7 @@
     <div class="content" aria-live="polite"></div>
 
     <div style="text-align:center;margin:20px 0;">
-      <button id="loadMoreBtn" class="inspire-btn" type="button" aria-label="Load more artworks">
-        Load more
-      </button>
+      <button id="loadMoreBtn" class="inspire-btn" type="button" aria-label="Load more artworks">Load more</button>
     </div>
   </div>
 
@@ -229,8 +179,8 @@
     class Symbol {
       constructor(x, y, fontSize, canvasHeight) {
         this.characters = '♡⚛︎♥︎☻⨂♡♘☂︎☀︎☻☾♘♡☂︎∞⚛︎♠︎♘∏⋈♥︎♛♝♘♚∑⚛︎♓︎♡♊︎♥︎☂︎☻♘★⥣⇓☂︎☻⚛︎♥︎❄︎☆£❀$¥€Ω×1⚛︎2⚛︎3♥︎4☂︎☂︎56♡♥︎78♡9✈︎⚤0⚛︎☻☂︎';
-        this.x = x; this.y = y; this.fontSize = fontSize;
-        this.text = ''; this.canvasHeight = canvasHeight;
+        this.x = x; this.y = y; this.fontSize = fontSize; this.text = '';
+        this.canvasHeight = canvasHeight;
       }
       draw(context) {
         this.text = this.characters.charAt(Math.floor(Math.random() * this.characters.length));
@@ -239,54 +189,39 @@
         else this.y += 1;
       }
     }
-
     class Effect {
       constructor(canvasWidth, canvasHeight) {
-        this.canvasWidth = canvasWidth;
-        this.canvasHeight = canvasHeight;
+        this.canvasWidth = canvasWidth; this.canvasHeight = canvasHeight;
         this.fontSize = 20;
         this.columns = Math.floor(this.canvasWidth / this.fontSize);
         this.symbols = [];
         this.#initialize();
       }
-      #initialize() {
-        for (let i = 0; i < this.columns; i++) {
-          this.symbols[i] = new Symbol(i, 0, this.fontSize, this.canvasHeight);
-        }
-      }
+      #initialize() { for (let i = 0; i < this.columns; i++) this.symbols[i] = new Symbol(i, 0, this.fontSize, this.canvasHeight); }
       resize(width, height) {
-        this.canvasWidth = width;
-        this.canvasHeight = height;
+        this.canvasWidth = width; this.canvasHeight = height;
         this.columns = Math.floor(this.canvasWidth / this.fontSize);
-        this.symbols = [];
-        this.#initialize();
+        this.symbols = []; this.#initialize();
       }
     }
-
     const effect = new Effect(canvas.width, canvas.height);
     let lastTime = 0; const fps = 60; const nextFrame = 1000 / fps; let timer = 0;
-
     function animate(timeStamp) {
-      const deltaTime = timeStamp - lastTime;
-      lastTime = timeStamp;
+      const deltaTime = timeStamp - lastTime; lastTime = timeStamp;
       if (timer > nextFrame) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
         ctx.textAlign = 'center';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = gradient;
         ctx.font = effect.fontSize + 'px monospace';
-        effect.symbols.forEach(symbol => symbol.draw(ctx));
+        effect.symbols.forEach(s => s.draw(ctx));
         timer = 0;
-      } else {
-        timer += deltaTime;
-      }
+      } else { timer += deltaTime; }
       requestAnimationFrame(animate);
     }
     animate(0);
-
-    window.addEventListener('resize', function () {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
       effect.resize(canvas.width, canvas.height);
       gradient = ctx.createRadialGradient(
         canvas.width / 2, canvas.height / 2, 100,
@@ -303,16 +238,12 @@
      ***********************/
     const loadingNotification = document.getElementById('loadingNotification');
     const successNotification = document.getElementById('successNotification');
-    const errorNotification = document.getElementById('errorNotification');
-
+    const errorNotification   = document.getElementById('errorNotification');
     function showNotification(element, duration = 4000) {
       [loadingNotification, successNotification, errorNotification].forEach(n => n.style.display = 'none');
       element.style.display = 'block';
-      if (duration) {
-        setTimeout(() => { element.style.display = 'none'; }, duration);
-      }
+      if (duration) setTimeout(() => { element.style.display = 'none'; }, duration);
     }
-
     function showError(message) {
       errorNotification.textContent = message || 'Something went wrong.';
       errorNotification.setAttribute('role', 'alert');
@@ -325,7 +256,7 @@
      ***********************/
     let provider = 'aic';
 
-    // AIC: POST /api/v1/artworks/search - public domain + image_id
+    // AIC: POST /api/v1/artworks/search (public domain + image_id)
     async function fetchAIC(offset = 0, limit = 100) {
       try {
         const resp = await fetch('https://api.artic.edu/api/v1/artworks/search', {
@@ -337,7 +268,14 @@
               "id","title","image_id","artist_display","date_display",
               "medium_display","dimensions","credit_line","description"
             ],
-            query: { bool: { must: [ { term: { is_public_domain: true } }, { exists: { field: "image_id" } } ] } }
+            query: {
+              bool: {
+                must: [
+                  { term: { is_public_domain: true } },
+                  { exists: { field: "image_id" } }
+                ]
+              }
+            }
           })
         });
         if (!resp.ok) throw new Error('AIC network error');
@@ -361,6 +299,7 @@
     // The Met: GET search -> objectIDs -> GET objects/{id}
     async function fetchMet(offset = 0, limit = 100) {
       try {
+        // hasImages=true, q=* (kõik sobivad)
         const search = await fetch('https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=*');
         if (!search.ok) throw new Error('MET search error');
         const s = await search.json();
@@ -384,7 +323,7 @@
             date: o.objectDate || '',
             medium: o.medium || '',
             description: o.creditLine || '',
-            license: 'Open Access (varies; many CC0)'
+            license: 'Open Access (paljud CC0)'
           }));
       } catch (e) { console.error(e); return []; }
     }
@@ -420,16 +359,16 @@
     /***********************
      * 4) Galerii loogika
      ***********************/
-    const contentEl = document.querySelector('.content');
-    const inspireBtn = document.querySelector('.inspire-btn');
-    const resetBtn = document.querySelector('.reset-btn');
+    const contentEl   = document.querySelector('.content');
+    const inspireBtn  = document.querySelector('.inspire-btn');
+    const resetBtn    = document.querySelector('.reset-btn');
     const loadMoreBtn = document.getElementById('loadMoreBtn');
     const providerSelect = document.getElementById('providerSelect');
 
-    let allArtworks = [];           // viimane partii, millest valime
+    let allArtworks = [];           // viimati laetud partii
     let viewedArtworks = new Set(); // nähtud ID-d
     let isLoading = false;
-    let currentAbort = null;
+    let currentAbort = null;        // ruum tulevasteks tühistamisteks (vajadusel)
 
     // LocalStorage
     function saveState() {
@@ -456,10 +395,7 @@
 
       try {
         showNotification(loadingNotification, 0);
-        if (currentAbort) currentAbort.abort();
-        currentAbort = new AbortController();
-
-        // offset: juhuslik, et varieerida
+        // juhuslik offset, et varieerida (Met/CMA ignoreerivad osaliselt, AIC-l toimib)
         const offset = Math.floor(Math.random() * 50000);
         const newArtworks = await fetchArtworks(offset, 100);
 
@@ -478,11 +414,9 @@
         isLoading = false;
         inspireBtn.disabled = false;
         loadMoreBtn.disabled = false;
-        currentAbort = null;
       }
     }
 
-    // Kaartide joonistamine (append režiimiga)
     async function displayArtworks({ append = false } = {}) {
       if (isLoading) return;
 
@@ -528,7 +462,7 @@
         `;
         card.appendChild(info);
 
-        // Pilt lazy
+        // Pilt (lazy)
         const img = new Image();
         img.loading = 'lazy';
         img.alt = artwork.title;
@@ -557,7 +491,6 @@
       const detailWindow = window.open('', '_blank', 'noopener,noreferrer');
       const imageUrl = artwork.imageUrlLarge || artwork.imageUrl;
 
-      // Lihtne turvalisem templating
       const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
         ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
       );
@@ -569,7 +502,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>${esc(artwork.title)}</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
+    body { font-family: Inter, Arial, sans-serif; background: #f5f5f5; color: #333; padding: 20px; }
     img { max-width: 100%; border-radius: 8px; margin-bottom: 20px; display:block; }
     h1 { color: #333; font-size: 1.8rem; margin: 0 0 10px; }
     .meta { color:#555; margin: 4px 0; }
@@ -615,7 +548,7 @@
         loadState();
         loadNewArtworks().then(() => displayArtworks({ append: false }));
       }, 1000);
-    }, 8000);
+    }, 2000); /* Lühendasin 8s -> 2s */
   </script>
 </body>
 </html>
