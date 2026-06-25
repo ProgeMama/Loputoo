@@ -168,7 +168,7 @@
 	</div>
 
 	<script>
-		/* Teksti puhastamine (eemalda HTML-jäägid) */
+		/* Teksti puhastamine */
 		function decodeEntities(str) {
 			const txt = document.createElement("textarea");
 			txt.innerHTML = str;
@@ -370,14 +370,13 @@
 			console.error("Error:", msg);
 		}
 
-		/* Andmepakkujad (AIC, Met) */
+		/* Andmepakkujad */
 		let provider = "aic";
 		let currentAbort = null;
 		let activeLoadPromise = null;
 		let activeLoadTarget = 0;
 		let loadToken = 0;
 
-		// Cache'id, et API-sid mitte üle koormata
 		let metObjectIDsCache = null;
 		let aicTotalCache = null;
 
@@ -552,7 +551,7 @@
 			}
 		}
 
-		/* Ujukogu (pool) kuni 108 kordumatut */
+		/* Ujukogu */
 		const POOL_TARGET = 108;
 		const STARTUP_POOL_TARGET = 36;
 		const TOP_UP_AT = 24;
@@ -709,7 +708,6 @@
 					} else if (result.ok) {
 						unusedRenderable.push(result.artwork);
 					} else {
-						// Ära proovi katkiseid URL-e samas brauseris lõputult uuesti.
 						seenIds.add(result.artwork.id);
 					}
 				}
