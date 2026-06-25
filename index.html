@@ -90,6 +90,12 @@
 			min-width: 260px;
 		}
 
+		button:disabled,
+		select:disabled {
+			opacity: 0.6;
+			cursor: wait;
+		}
+
 		.inspire-btn {
 			background-color: #65105b;
 			color: white;
@@ -108,12 +114,6 @@
 		.reset-btn:hover {
 			background-color: rgb(171,171,171);
 			color: #111;
-		}
-
-		button:disabled,
-		select:disabled {
-			opacity: 0.6;
-			cursor: wait;
 		}
 
 		.status {
@@ -320,6 +320,18 @@
 			return arr;
 		}
 
+		function dedupeArtworks(items) {
+			const map = new Map();
+
+			for (const item of items) {
+				if (item && item.id && item.imageUrl && !map.has(item.id)) {
+					map.set(item.id, item);
+				}
+			}
+
+			return shuffle(Array.from(map.values()));
+		}
+
 		const canvas = document.getElementById("canvas1");
 		const ctx = canvas.getContext("2d");
 
@@ -444,9 +456,7 @@
 		let provider = "aic";
 		let seenIds = new Set();
 		let activeAbortController = null;
-		let startupArtworks = [];
 
-		const AIC_ARTWORKS_URL = "https://api.artic.edu/api/v1/artworks";
 		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
 		const AIC_FIELDS = [
 			"id",
@@ -475,7 +485,9 @@
 			"nature",
 			"water",
 			"still life",
-			"city"
+			"city",
+			"japanese",
+			"print"
 		];
 
 		function setStatus(message, isError = false) {
@@ -556,8 +568,11 @@
 			}
 
 			if (options.signal) {
-				if (options.signal.aborted) controller.abort();
-				else options.signal.addEventListener("abort", onAbort, { once: true });
+				if (options.signal.aborted) {
+					controller.abort();
+				} else {
+					options.signal.addEventListener("abort", onAbort, { once: true });
+				}
 			}
 
 			try {
@@ -582,25 +597,25 @@
 			return response.json();
 		}
 
-		function makeAICImageUrl(imageId, size = "843,") {
-			const safeImageId = encodeURIComponent(String(imageId || "").trim());
-			return `https://www.artic.edu/iiif/2/${safeImageId}/full/${size}/0/default.jpg`;
+		function makeAICImageUrl(baseUrl, imageId, size = "843,") {
+			return `${baseUrl}/${imageId}/full/${size}/0/default.jpg`;
 		}
 
-		function mapAICArtwork(item) {
+		function mapAICArtwork(item, iiifBase) {
 			if (!item || !item.image_id) return null;
 
+			const baseUrl = iiifBase || "https://www.artic.edu/iiif/2";
 			const lqip = item.thumbnail && item.thumbnail.lqip ? item.thumbnail.lqip : "";
 
 			return {
 				id: `aic_${item.id}`,
 				title: cleanText(item.title || "Untitled"),
-				imageUrl: lqip || makeAICImageUrl(item.image_id, "843,"),
-				imageUrlLarge: makeAICImageUrl(item.image_id, "1200,"),
+				imageUrl: makeAICImageUrl(baseUrl, item.image_id, "843,"),
+				imageUrlLarge: makeAICImageUrl(baseUrl, item.image_id, "1200,"),
 				imageCandidates: [
-					makeAICImageUrl(item.image_id, "843,"),
-					makeAICImageUrl(item.image_id, "600,"),
-					makeAICImageUrl(item.image_id, "400,"),
+					makeAICImageUrl(baseUrl, item.image_id, "843,"),
+					makeAICImageUrl(baseUrl, item.image_id, "600,"),
+					makeAICImageUrl(baseUrl, item.image_id, "400,"),
 					lqip
 				].filter(Boolean),
 				fallbackImageUrl: lqip,
@@ -635,80 +650,30 @@
 
 		async function fetchAICBatch(signal) {
 			const all = [];
+			const terms = shuffle(SEARCH_TERMS).slice(0, 8);
 
-			const searchAttempts = [
-				"painting",
-				"portrait",
-				"landscape",
-				"flower",
-				"woman",
-				"japanese",
-				"print"
-			];
-
-			for (const term of shuffle(searchAttempts)) {
+			for (const term of terms) {
 				if (all.length >= 36) break;
 
 				try {
-					const body = {
-						limit: 100,
-						fields: AIC_FIELDS,
-						query: {
-							bool: {
-								must: [
-									{ term: { is_public_domain: true } },
-									{ exists: { field: "image_id" } },
-									{ match: { title: term } }
-								]
-							}
-						}
-					};
+					const params = new URLSearchParams();
 
-					const data = await fetchJSON(
-						AIC_SEARCH_URL,
-						{
-							method: "POST",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify(body),
-							signal
-						},
-						10000
-					);
+					params.set("q", term);
+					params.set("query[term][is_public_domain]", "true");
+					params.set("limit", "100");
+					params.set("fields", AIC_FIELDS.join(","));
+
+					const data = await fetchJSON(`${AIC_SEARCH_URL}?${params.toString()}`, { signal }, 9000);
+					const iiifBase = data.config && data.config.iiif_url ? data.config.iiif_url : "https://www.artic.edu/iiif/2";
 
 					const mapped = (data.data || [])
-						.map(mapAICArtwork)
+						.map(item => mapAICArtwork(item, iiifBase))
 						.filter(Boolean);
 
 					all.push(...mapped);
 				} catch (error) {
 					if (error.name === "AbortError") throw error;
-					console.warn("AIC POST search failed:", error);
-				}
-			}
-
-			if (all.length < 6) {
-				const pages = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 40, 50]);
-
-				for (const page of pages) {
-					if (all.length >= 36) break;
-
-					try {
-						const params = new URLSearchParams();
-						params.set("page", String(page));
-						params.set("limit", "100");
-						params.set("fields", AIC_FIELDS.join(","));
-
-						const data = await fetchJSON(`${AIC_ARTWORKS_URL}?${params.toString()}`, { signal }, 10000);
-
-						const mapped = (data.data || [])
-							.map(mapAICArtwork)
-							.filter(Boolean);
-
-						all.push(...mapped);
-					} catch (error) {
-						if (error.name === "AbortError") throw error;
-						console.warn("AIC artworks fallback failed:", error);
-					}
+					console.warn("AIC request failed:", error);
 				}
 			}
 
@@ -751,18 +716,6 @@
 			return dedupeArtworks(results);
 		}
 
-		function dedupeArtworks(items) {
-			const map = new Map();
-
-			for (const item of items) {
-				if (item && item.id && item.imageUrl && !map.has(item.id)) {
-					map.set(item.id, item);
-				}
-			}
-
-			return shuffle(Array.from(map.values()));
-		}
-
 		async function loadArtworks(sourceProvider, signal) {
 			let artworks = [];
 
@@ -772,8 +725,7 @@
 
 				if (artworks.length < 6) {
 					setStatus("AIC had too few images. Trying The Met…");
-					const metArtworks = await fetchMetBatch(signal);
-					artworks = artworks.concat(metArtworks);
+					artworks = artworks.concat(await fetchMetBatch(signal));
 				}
 			} else {
 				setStatus("Loading images from The Met…");
@@ -781,8 +733,7 @@
 
 				if (artworks.length < 6) {
 					setStatus("The Met had too few images. Trying AIC…");
-					const aicArtworks = await fetchAICBatch(signal);
-					artworks = artworks.concat(aicArtworks);
+					artworks = artworks.concat(await fetchAICBatch(signal));
 				}
 			}
 
@@ -894,42 +845,28 @@ img {
 			img.decoding = "async";
 			img.alt = artwork.title || "Artwork image";
 
-			const highQualitySources = [
+			const sources = [
+				artwork.imageUrl,
 				...(artwork.imageCandidates || []),
-				artwork.imageUrl
+				artwork.fallbackImageUrl
 			].filter(Boolean);
 
-			const immediateSource = artwork.fallbackImageUrl || artwork.imageUrl || highQualitySources[0] || "";
-			img.src = immediateSource;
-
-			if (highQualitySources.length) {
-				let sourceIndex = 0;
-				const testImage = new Image();
-
-				function tryNextHighQualityImage() {
-					if (sourceIndex >= highQualitySources.length) return;
-
-					testImage.onload = () => {
-						img.src = highQualitySources[sourceIndex];
-					};
-
-					testImage.onerror = () => {
-						sourceIndex += 1;
-						tryNextHighQualityImage();
-					};
-
-					testImage.src = highQualitySources[sourceIndex];
-				}
-
-				tryNextHighQualityImage();
-			}
+			let sourceIndex = 0;
 
 			img.addEventListener("error", () => {
-				const fallback = document.createElement("div");
-				fallback.className = "broken-image";
-				fallback.textContent = "Image could not be loaded";
-				img.replaceWith(fallback);
-			}, { once: true });
+				sourceIndex += 1;
+
+				if (sourceIndex < sources.length) {
+					img.src = sources[sourceIndex];
+				} else {
+					const fallback = document.createElement("div");
+					fallback.className = "broken-image";
+					fallback.textContent = "Image could not be loaded";
+					img.replaceWith(fallback);
+				}
+			});
+
+			img.src = sources[0] || "";
 
 			return img;
 		}
@@ -982,7 +919,7 @@ img {
 			});
 		}
 
-		async function showSixNew(useStartupArtworks = false) {
+		async function showSixNew() {
 			if (activeAbortController) {
 				activeAbortController.abort();
 			}
@@ -992,16 +929,10 @@ img {
 
 			setControlsDisabled(true);
 			showNotification(loadingNotification, 0);
+			renderLoadingCards();
 
 			try {
-				let artworks = [];
-
-				if (useStartupArtworks && startupArtworks.length >= 6) {
-					artworks = startupArtworks.slice(0, 6);
-				} else {
-					renderLoadingCards();
-					artworks = await loadArtworks(provider, signal);
-				}
+				const artworks = await loadArtworks(provider, signal);
 
 				if (!artworks.length) {
 					contentEl.innerHTML = "";
@@ -1028,39 +959,22 @@ img {
 			}
 		}
 
-		async function prepareStartupArtworks() {
-			const controller = new AbortController();
-
-			try {
-				startupArtworks = await loadArtworks(provider, controller.signal);
-			} catch (error) {
-				console.warn("Startup loading failed:", error);
-				startupArtworks = [];
-			}
-		}
-
 		function resetHistory() {
 			clearSeen();
-			showSixNew(false);
+			showSixNew();
 		}
 
 		providerSelectEl.addEventListener("change", event => {
 			provider = event.target.value;
-			startupArtworks = [];
-			showSixNew(false);
+			showSixNew();
 		});
 
-		inspireBtnEl.addEventListener("click", () => showSixNew(false));
+		inspireBtnEl.addEventListener("click", showSixNew);
 		resetBtnEl.addEventListener("click", resetHistory);
 
 		loadSeen();
 
-		const startupPromise = prepareStartupArtworks();
-
-		async function openGallery() {
-			await sleep(3500);
-			await startupPromise;
-
+		setTimeout(() => {
 			animationPage.classList.add("fade-out");
 
 			setTimeout(() => {
@@ -1068,11 +982,9 @@ img {
 				ctx.clearRect(0, 0, canvas.width, canvas.height);
 				animationPage.style.display = "none";
 				galleryPage.style.display = "block";
-				showSixNew(true);
+				showSixNew();
 			}, 1000);
-		}
-
-		openGallery();
+		}, 3500);
 	</script>
 </body>
 </html>
