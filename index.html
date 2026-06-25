@@ -9,7 +9,7 @@
 	<link rel="preconnect" href="https://www.artic.edu/" crossorigin />
 	<link rel="preconnect" href="https://collectionapi.metmuseum.org/" crossorigin />
 	<link rel="preconnect" href="https://images.metmuseum.org/" crossorigin />
-	<link rel="dns-prefetch" href="https://images.metmuseum.org/" />
+	<link rel="preconnect" href="https://api.harvardartmuseums.org/" crossorigin />
 	<link rel="preconnect" href="https://fonts.googleapis.com/" crossorigin />
 	<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
 	<link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet" />
@@ -87,7 +87,7 @@
 
 		select {
 			border: 1px solid #ccc;
-			min-width: 260px;
+			min-width: 280px;
 		}
 
 		button:disabled,
@@ -270,8 +270,9 @@
 			<label for="providerSelect" style="position: absolute; left: -9999px">Andmepakkuja</label>
 
 			<select id="providerSelect" aria-label="Data provider">
+				<option value="met" selected>The Met New York</option>
+				<option value="harvard">Harvard Art Museums</option>
 				<option value="aic">Art Institute of Chicago</option>
-				<option value="met">The Met (New York)</option>
 			</select>
 
 			<button class="inspire-btn" type="button">Inspire Me</button>
@@ -292,6 +293,11 @@
 	</div>
 
 	<script>
+		/* Harvard API key.
+		   Harvard API vajab key'd.
+		   Kui saad key, pane see siia jutumärkide vahele. */
+		const HARVARD_API_KEY = "";
+
 		function cleanText(value) {
 			const div = document.createElement("div");
 			div.innerHTML = String(value ?? "");
@@ -479,11 +485,13 @@
 		const successNotification = document.getElementById("successNotification");
 		const errorNotification = document.getElementById("errorNotification");
 
-		let provider = "aic";
+		let provider = "met";
 		let seenIds = new Set();
 		let activeAbortController = null;
 
 		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
+		const HARVARD_OBJECT_URL = "https://api.harvardartmuseums.org/object";
+
 		const AIC_FIELDS = [
 			"id",
 			"title",
@@ -677,6 +685,31 @@
 			};
 		}
 
+		function mapHarvardArtwork(item) {
+			if (!item) return null;
+
+			const imageUrl = item.primaryimageurl || item.baseimageurl || "";
+			if (!imageUrl) return null;
+
+			const artist = Array.isArray(item.people) && item.people.length
+				? item.people.map(person => person.name).filter(Boolean).join(", ")
+				: "Artist Unknown";
+
+			return {
+				id: `harvard_${item.id}`,
+				title: cleanText(item.title || "Untitled"),
+				imageUrl,
+				imageUrlLarge: imageUrl,
+				imageCandidates: [imageUrl],
+				fallbackImageUrl: "",
+				artist: cleanText(artist),
+				date: cleanText(item.dated || ""),
+				medium: cleanText(item.medium || ""),
+				description: cleanText(item.creditline || ""),
+				license: "Harvard Art Museums"
+			};
+		}
+
 		async function makeRenderable(artwork) {
 			const candidates = (artwork.imageCandidates || [artwork.imageUrl]).filter(Boolean);
 
@@ -773,15 +806,59 @@
 			return dedupeArtworks(results);
 		}
 
+		async function fetchHarvardBatch(signal) {
+			if (!HARVARD_API_KEY.trim()) {
+				setStatus("Harvard API vajab API key'd. Praegu näitan The Met pilte.", true);
+				return [];
+			}
+
+			const all = [];
+			const pages = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30]);
+
+			for (const page of pages) {
+				if (all.length >= 40) break;
+
+				try {
+					const params = new URLSearchParams();
+
+					params.set("apikey", HARVARD_API_KEY.trim());
+					params.set("size", "100");
+					params.set("page", String(page));
+					params.set("hasimage", "1");
+					params.set("fields", "id,title,dated,medium,creditline,primaryimageurl,baseimageurl,people");
+
+					const data = await fetchJSON(`${HARVARD_OBJECT_URL}?${params.toString()}`, { signal }, 10000);
+
+					const mapped = (data.records || [])
+						.map(mapHarvardArtwork)
+						.filter(Boolean);
+
+					all.push(...mapped);
+				} catch (error) {
+					if (error.name === "AbortError") throw error;
+					console.warn("Harvard request failed:", error);
+				}
+			}
+
+			return dedupeArtworks(all);
+		}
+
 		async function loadArtworks(sourceProvider, signal) {
 			let rawArtworks = [];
+
+			if (sourceProvider === "met") {
+				setStatus("Loading images from The Met New York…");
+				rawArtworks = await fetchMetBatch(signal);
+			}
+
+			if (sourceProvider === "harvard") {
+				setStatus("Loading images from Harvard Art Museums…");
+				rawArtworks = await fetchHarvardBatch(signal);
+			}
 
 			if (sourceProvider === "aic") {
 				setStatus("Loading images from Art Institute of Chicago…");
 				rawArtworks = await fetchAICBatch(signal);
-			} else {
-				setStatus("Loading images from The Met…");
-				rawArtworks = await fetchMetBatch(signal);
 			}
 
 			let unseen = rawArtworks.filter(item => !seenIds.has(item.id));
@@ -803,11 +880,9 @@
 				}
 			}
 
-			if (finalItems.length < 6) {
-				const fallbackProvider = sourceProvider === "aic" ? "met" : "aic";
-				const fallbackRaw = fallbackProvider === "aic"
-					? await fetchAICBatch(signal)
-					: await fetchMetBatch(signal);
+			if (finalItems.length < 6 && sourceProvider !== "met") {
+				setStatus("This source had too few working images. Filling with The Met…");
+				const fallbackRaw = await fetchMetBatch(signal);
 
 				for (const artwork of fallbackRaw) {
 					if (signal.aborted) break;
@@ -992,7 +1067,7 @@ img {
 
 				if (!artworks.length) {
 					contentEl.innerHTML = "";
-					showError("No images found. Try again or choose the other API.");
+					showError("No images found. Try again or choose another API.");
 					return;
 				}
 
@@ -1005,7 +1080,7 @@ img {
 			} catch (error) {
 				if (error.name !== "AbortError") {
 					console.error(error);
-					showError("Images could not be loaded. Try again or choose the other API.");
+					showError("Images could not be loaded. Try again or choose another API.");
 				}
 			} finally {
 				if (!signal.aborted) {
