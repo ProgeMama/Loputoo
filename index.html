@@ -320,7 +320,6 @@
 			return arr;
 		}
 
-		/* Splash animation */
 		const canvas = document.getElementById("canvas1");
 		const ctx = canvas.getContext("2d");
 
@@ -430,7 +429,6 @@
 			gradient.addColorStop(0.9, "magenta");
 		});
 
-		/* UI elements */
 		const galleryPage = document.getElementById("gallery-page");
 		const animationPage = document.getElementById("animation-page");
 		const contentEl = document.querySelector(".content");
@@ -450,16 +448,16 @@
 
 		const AIC_ARTWORKS_URL = "https://api.artic.edu/api/v1/artworks";
 		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
-		cconst AIC_FIELDS = [
-	"id",
-	"title",
-	"image_id",
-	"thumbnail",
-	"artist_display",
-	"date_display",
-	"medium_display",
-	"description"
-];
+		const AIC_FIELDS = [
+			"id",
+			"title",
+			"image_id",
+			"thumbnail",
+			"artist_display",
+			"date_display",
+			"medium_display",
+			"description"
+		];
 
 		const SEARCH_TERMS = [
 			"painting",
@@ -553,8 +551,13 @@
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+			function onAbort() {
+				controller.abort();
+			}
+
 			if (options.signal) {
-				options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+				if (options.signal.aborted) controller.abort();
+				else options.signal.addEventListener("abort", onAbort, { once: true });
 			}
 
 			try {
@@ -570,6 +573,7 @@
 				return response;
 			} finally {
 				clearTimeout(timeoutId);
+				if (options.signal) options.signal.removeEventListener("abort", onAbort);
 			}
 		}
 
@@ -579,34 +583,35 @@
 		}
 
 		function makeAICImageUrl(imageId, size = "843,") {
-	const safeImageId = encodeURIComponent(String(imageId || "").trim());
-	return `https://www.artic.edu/iiif/2/${safeImageId}/full/${size}/0/default.jpg`;
-}
+			const safeImageId = encodeURIComponent(String(imageId || "").trim());
+			return `https://www.artic.edu/iiif/2/${safeImageId}/full/${size}/0/default.jpg`;
+		}
 
-function mapAICArtwork(item) {
-	if (!item || !item.image_id) return null;
+		function mapAICArtwork(item) {
+			if (!item || !item.image_id) return null;
 
-	const lqip = item.thumbnail && item.thumbnail.lqip ? item.thumbnail.lqip : "";
+			const lqip = item.thumbnail && item.thumbnail.lqip ? item.thumbnail.lqip : "";
 
-	return {
-		id: `aic_${item.id}`,
-		title: cleanText(item.title || "Untitled"),
-		imageUrl: makeAICImageUrl(item.image_id, "843,"),
-		imageUrlLarge: makeAICImageUrl(item.image_id, "1200,"),
-		imageCandidates: [
-			makeAICImageUrl(item.image_id, "843,"),
-			makeAICImageUrl(item.image_id, "600,"),
-			makeAICImageUrl(item.image_id, "400,"),
-			lqip
-		].filter(Boolean),
-		fallbackImageUrl: lqip,
-		artist: cleanText(item.artist_display || "Artist Unknown"),
-		date: cleanText(item.date_display || ""),
-		medium: cleanText(item.medium_display || ""),
-		description: cleanText(item.description || ""),
-		license: "Art Institute of Chicago Public Domain"
-	};
-}
+			return {
+				id: `aic_${item.id}`,
+				title: cleanText(item.title || "Untitled"),
+				imageUrl: lqip || makeAICImageUrl(item.image_id, "843,"),
+				imageUrlLarge: makeAICImageUrl(item.image_id, "1200,"),
+				imageCandidates: [
+					makeAICImageUrl(item.image_id, "843,"),
+					makeAICImageUrl(item.image_id, "600,"),
+					makeAICImageUrl(item.image_id, "400,"),
+					lqip
+				].filter(Boolean),
+				fallbackImageUrl: lqip,
+				artist: cleanText(item.artist_display || "Artist Unknown"),
+				date: cleanText(item.date_display || ""),
+				medium: cleanText(item.medium_display || ""),
+				description: cleanText(item.description || ""),
+				license: "Art Institute of Chicago Public Domain"
+			};
+		}
+
 		function mapMetArtwork(item) {
 			if (!item) return null;
 
@@ -628,41 +633,87 @@ function mapAICArtwork(item) {
 			};
 		}
 
-async function fetchAICBatch(signal) {
-	const all = [];
+		async function fetchAICBatch(signal) {
+			const all = [];
 
-	const pages = shuffle([
-		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-		11, 12, 13, 14, 15, 16, 17, 18, 19, 20
-	]);
+			const searchAttempts = [
+				"painting",
+				"portrait",
+				"landscape",
+				"flower",
+				"woman",
+				"japanese",
+				"print"
+			];
 
-	for (const page of pages) {
-		if (all.length >= 30) break;
+			for (const term of shuffle(searchAttempts)) {
+				if (all.length >= 36) break;
 
-		try {
-			const params = new URLSearchParams();
+				try {
+					const body = {
+						limit: 100,
+						fields: AIC_FIELDS,
+						query: {
+							bool: {
+								must: [
+									{ term: { is_public_domain: true } },
+									{ exists: { field: "image_id" } },
+									{ match: { title: term } }
+								]
+							}
+						}
+					};
 
-			params.set("page", String(page));
-			params.set("limit", "100");
-			params.set("fields", AIC_FIELDS.join(","));
-			params.set("query[term][is_public_domain]", "true");
+					const data = await fetchJSON(
+						AIC_SEARCH_URL,
+						{
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify(body),
+							signal
+						},
+						10000
+					);
 
-			const url = `${AIC_SEARCH_URL}?${params.toString()}`;
-			const data = await fetchJSON(url, { signal }, 9000);
+					const mapped = (data.data || [])
+						.map(mapAICArtwork)
+						.filter(Boolean);
 
-			const mapped = (data.data || [])
-				.map(mapAICArtwork)
-				.filter(Boolean);
+					all.push(...mapped);
+				} catch (error) {
+					if (error.name === "AbortError") throw error;
+					console.warn("AIC POST search failed:", error);
+				}
+			}
 
-			all.push(...mapped);
-		} catch (error) {
-			if (error.name === "AbortError") throw error;
-			console.warn("AIC public-domain search failed:", error);
+			if (all.length < 6) {
+				const pages = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 40, 50]);
+
+				for (const page of pages) {
+					if (all.length >= 36) break;
+
+					try {
+						const params = new URLSearchParams();
+						params.set("page", String(page));
+						params.set("limit", "100");
+						params.set("fields", AIC_FIELDS.join(","));
+
+						const data = await fetchJSON(`${AIC_ARTWORKS_URL}?${params.toString()}`, { signal }, 10000);
+
+						const mapped = (data.data || [])
+							.map(mapAICArtwork)
+							.filter(Boolean);
+
+						all.push(...mapped);
+					} catch (error) {
+						if (error.name === "AbortError") throw error;
+						console.warn("AIC artworks fallback failed:", error);
+					}
+				}
+			}
+
+			return dedupeArtworks(all);
 		}
-	}
-
-	return dedupeArtworks(all);
-}
 
 		async function fetchMetBatch(signal) {
 			const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
@@ -838,80 +889,90 @@ img {
 		}
 
 		function createArtworkImage(artwork) {
-	const img = new Image();
-	img.loading = "eager";
-	img.decoding = "async";
-	img.alt = artwork.title || "Artwork image";
+			const img = new Image();
+			img.loading = "eager";
+			img.decoding = "async";
+			img.alt = artwork.title || "Artwork image";
 
-	const sources = [
-		artwork.imageUrl,
-		...(artwork.imageCandidates || []),
-		artwork.fallbackImageUrl
-	].filter(Boolean);
+			const highQualitySources = [
+				...(artwork.imageCandidates || []),
+				artwork.imageUrl
+			].filter(Boolean);
 
-	let sourceIndex = 0;
+			const immediateSource = artwork.fallbackImageUrl || artwork.imageUrl || highQualitySources[0] || "";
+			img.src = immediateSource;
 
-	function showBrokenImage() {
-		const fallback = document.createElement("div");
-		fallback.className = "broken-image";
-		fallback.textContent = "Image could not be loaded";
-		img.replaceWith(fallback);
-	}
+			if (highQualitySources.length) {
+				let sourceIndex = 0;
+				const testImage = new Image();
 
-	img.addEventListener("error", () => {
-		sourceIndex += 1;
+				function tryNextHighQualityImage() {
+					if (sourceIndex >= highQualitySources.length) return;
 
-		if (sourceIndex < sources.length) {
-			img.src = sources[sourceIndex];
-		} else {
-			showBrokenImage();
+					testImage.onload = () => {
+						img.src = highQualitySources[sourceIndex];
+					};
+
+					testImage.onerror = () => {
+						sourceIndex += 1;
+						tryNextHighQualityImage();
+					};
+
+					testImage.src = highQualitySources[sourceIndex];
+				}
+
+				tryNextHighQualityImage();
+			}
+
+			img.addEventListener("error", () => {
+				const fallback = document.createElement("div");
+				fallback.className = "broken-image";
+				fallback.textContent = "Image could not be loaded";
+				img.replaceWith(fallback);
+			}, { once: true });
+
+			return img;
 		}
-	});
 
-	img.src = sources[0] || "";
+		function makeCard(artwork) {
+			const card = document.createElement("article");
+			card.className = "artwork-card";
 
-	return img;
-}
+			const link = document.createElement("a");
+			link.href = makeDetailPageUrl(artwork);
+			link.target = "_blank";
+			link.rel = "noopener noreferrer";
 
-function makeCard(artwork) {
-	const card = document.createElement("article");
-	card.className = "artwork-card";
+			const img = createArtworkImage(artwork);
+			link.appendChild(img);
 
-	const link = document.createElement("a");
-	link.href = makeDetailPageUrl(artwork);
-	link.target = "_blank";
-	link.rel = "noopener noreferrer";
+			const info = document.createElement("div");
+			info.className = "artwork-info";
 
-	const img = createArtworkImage(artwork);
-	link.appendChild(img);
+			const title = document.createElement("h3");
+			title.textContent = artwork.title || "Untitled";
 
-	const info = document.createElement("div");
-	info.className = "artwork-info";
+			const artist = document.createElement("p");
+			artist.textContent = artwork.artist || "Artist Unknown";
 
-	const title = document.createElement("h3");
-	title.textContent = artwork.title || "Untitled";
+			const date = document.createElement("p");
+			date.className = "date";
+			date.textContent = artwork.date || "";
 
-	const artist = document.createElement("p");
-	artist.textContent = artwork.artist || "Artist Unknown";
+			const license = document.createElement("p");
+			license.className = "license";
+			license.textContent = artwork.license || "";
 
-	const date = document.createElement("p");
-	date.className = "date";
-	date.textContent = artwork.date || "";
+			info.appendChild(title);
+			info.appendChild(artist);
+			info.appendChild(date);
+			info.appendChild(license);
 
-	const license = document.createElement("p");
-	license.className = "license";
-	license.textContent = artwork.license || "";
+			card.appendChild(link);
+			card.appendChild(info);
 
-	info.appendChild(title);
-	info.appendChild(artist);
-	info.appendChild(date);
-	info.appendChild(license);
-
-	card.appendChild(link);
-	card.appendChild(info);
-
-	return card;
-}
+			return card;
+		}
 
 		function renderGallery(artworks) {
 			contentEl.innerHTML = "";
