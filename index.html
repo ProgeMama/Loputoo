@@ -578,14 +578,28 @@
 			return response.json();
 		}
 
-		function mapAICArtwork(item) {
+		function makeAICImageUrl(imageId, size = "843,") {
+	const safeImageId = encodeURIComponent(String(imageId || "").trim());
+	return `https://www.artic.edu/iiif/2/${safeImageId}/full/${size}/0/default.jpg`;
+}
+
+function mapAICArtwork(item) {
 	if (!item || !item.image_id) return null;
+
+	const lqip = item.thumbnail && item.thumbnail.lqip ? item.thumbnail.lqip : "";
 
 	return {
 		id: `aic_${item.id}`,
 		title: cleanText(item.title || "Untitled"),
-		imageUrl: `https://www.artic.edu/iiif/2/${item.image_id}/full/843,/0/default.jpg`,
-		imageUrlLarge: `https://www.artic.edu/iiif/2/${item.image_id}/full/1200,/0/default.jpg`,
+		imageUrl: makeAICImageUrl(item.image_id, "843,"),
+		imageUrlLarge: makeAICImageUrl(item.image_id, "1200,"),
+		imageCandidates: [
+			makeAICImageUrl(item.image_id, "843,"),
+			makeAICImageUrl(item.image_id, "600,"),
+			makeAICImageUrl(item.image_id, "400,"),
+			lqip
+		].filter(Boolean),
+		fallbackImageUrl: lqip,
 		artist: cleanText(item.artist_display || "Artist Unknown"),
 		date: cleanText(item.date_display || ""),
 		medium: cleanText(item.medium_display || ""),
