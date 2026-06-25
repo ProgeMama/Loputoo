@@ -1,480 +1,925 @@
 <!DOCTYPE html>
 <html lang="et">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Resonant Art Gallery</title>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Resonant Art Gallery</title>
 
-  <link rel="preconnect" href="https://api.artic.edu" crossorigin>
-  <link rel="preconnect" href="https://www.artic.edu" crossorigin>
-  <link rel="preconnect" href="https://collectionapi.metmuseum.org" crossorigin>
-  <link rel="preconnect" href="https://images.metmuseum.org" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet">
+	<!-- Preconnect (AIC, AIC IIIF, The Met API, The Met images CDN, Google Fonts) -->
+	<link rel="preconnect" href="https://api.artic.edu/" crossorigin />
+	<link rel="preconnect" href="https://www.artic.edu/" crossorigin />
+	<link rel="preconnect" href="https://collectionapi.metmuseum.org/" crossorigin />
+	<link rel="preconnect" href="https://images.metmuseum.org/" crossorigin />
+	<link rel="dns-prefetch" href="https://images.metmuseum.org/" />
+	<link rel="preconnect" href="https://fonts.googleapis.com/" crossorigin />
+	<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
 
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+	<!-- Foldit pealkirjale; keha algse stiiliga -->
+	<link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet" />
 
-    body {
-      min-height: 100vh;
-      font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
-      background: #f5f5f5;
-      color: #333;
-    }
+	<style>
+		* { box-sizing: border-box; margin: 0; padding: 0; }
 
-    header {
-      padding: 28px 20px 10px;
-      text-align: center;
-    }
+		body {
+			font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
+			overflow-x: hidden;
+			margin: 0;
+			background: black;
+			color: #333;
+		}
 
-    h1 {
-      font-family: "Foldit", sans-serif;
-      font-weight: 400;
-      color: #333;
-      font-size: clamp(2.4rem, 7vw, 4.2rem);
-      margin-bottom: 18px;
-    }
+		/* Splash-animatsioon */
+		#animation-page {
+			position: fixed;
+			inset: 0;
+			z-index: 1000;
+			background: black;
+			transition: opacity 1s ease;
+		}
+		#animation-page.fade-out { opacity: 0; pointer-events: none; }
+		#canvas1 { position: absolute; inset: 0; }
 
-    .button-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 18px;
-    }
+		/* Galerii */
+		#gallery-page {
+			display: none;
+			background-color: #f5f5f5;
+			min-height: 100vh;
+			padding: 20px;
+		}
 
-    select,
-    button {
-      padding: 12px 16px;
-      border: none;
-      border-radius: 12px;
-      font-size: 1rem;
-      cursor: pointer;
-      background: white;
-      color: #333;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
+		h1 {
+			font-family: "Foldit", sans-serif;
+			font-weight: 400;
+			color: #333;
+			margin-bottom: 1.5rem;
+			font-size: clamp(2.4rem, 7vw, 3.5rem);
+			text-align: center;
+		}
 
-    select { border: 1px solid #ccc; min-width: 260px; }
+		.button-container {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 12px;
+			margin: 20px 0;
+			justify-content: center;
+			align-items: center;
+		}
 
-    .inspire-btn { background-color: #65105b; color: white; }
-    .reset-btn { background-color: #064215; color: white; }
-    button:hover { filter: brightness(1.08); }
-    button:disabled { opacity: 0.6; cursor: wait; }
+		select, .inspire-btn, .reset-btn {
+			padding: 12px 16px;
+			border: none;
+			border-radius: 12px;
+			font-size: 1rem;
+			cursor: pointer;
+			transition: all 0.25s ease;
+			background: white;
+			color: #333;
+		}
 
-    .status {
-      min-height: 28px;
-      text-align: center;
-      margin: 10px auto 18px;
-      color: #65105b;
-      font-size: 1rem;
-    }
+		select { border: 1px solid #ccc; min-width: 260px; }
+		select:disabled, button:disabled { opacity: 0.6; cursor: wait; }
 
-    .status.error { color: #c62828; }
+		.inspire-btn { background-color: #65105b; color: white; }
+		.inspire-btn:hover { background-color: rgb(171,171,171); color: #111; }
+		.reset-btn { background-color: #064215; color: white; }
+		.reset-btn:hover { background-color: rgb(171,171,171); color: #111; }
 
-    .content {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 25px;
-      width: min(1200px, calc(100% - 40px));
-      margin: 0 auto 40px;
-    }
+		.content {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 25px;
+			max-width: 1200px;
+			width: 100%;
+			margin: 0 auto;
+		}
 
-    @media (max-width: 900px) {
-      .content { grid-template-columns: repeat(2, 1fr); }
-    }
+		@media (max-width: 900px) { .content { grid-template-columns: repeat(2, 1fr); } }
+		@media (max-width: 600px) { .content { grid-template-columns: 1fr; } }
 
-    @media (max-width: 600px) {
-      .content { grid-template-columns: 1fr; }
-    }
+		.artwork-card {
+			background: white;
+			border-radius: 12px;
+			overflow: hidden;
+			box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+			transition: transform 0.3s ease, box-shadow 0.3s ease;
+			outline: none;
+		}
+		.artwork-card:hover, .artwork-card:focus-within {
+			transform: translateY(-5px);
+			box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+		}
+		.artwork-card a { color: inherit; text-decoration: none; }
+		.artwork-card img {
+			width: 100%;
+			height: 300px;
+			object-fit: cover;
+			display: block;
+			background: #ddd;
+		}
+		.artwork-info { padding: 15px; }
+		.artwork-info h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #222; font-weight: 600; }
+		.artwork-info p { margin: 0; font-size: 0.9rem; color: #666; }
+		.artwork-info .date { margin-top: 5px; font-size: 0.8rem; color: #888; }
+		.artwork-info .license { margin-top: 8px; font-size: 0.78rem; color: #777; }
 
-    .artwork-card {
-      background: white;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
-    }
+		.notification {
+			position: fixed;
+			top: 20px;
+			right: 20px;
+			max-width: min(420px, calc(100vw - 40px));
+			padding: 15px 25px;
+			border-radius: 12px;
+			color: white;
+			display: none;
+			animation: slideIn 0.5s ease;
+			z-index: 2000;
+			line-height: 1.35;
+		}
+		.loading { background-color: rgb(171,171,171); color: #111; }
+		.success { background-color: #65105b; }
+		.error { background-color: #dc3545; }
 
-    .artwork-card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-
-    .artwork-card a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    .artwork-card img {
-      width: 100%;
-      height: 300px;
-      object-fit: cover;
-      display: block;
-      background: #ddd;
-    }
-
-    .artwork-info { padding: 15px; }
-    .artwork-info h3 { margin-bottom: 8px; font-size: 1.08rem; color: #222; }
-    .artwork-info p { margin: 0; font-size: 0.9rem; color: #666; }
-    .artwork-info .date { margin-top: 5px; font-size: 0.8rem; color: #888; }
-    .artwork-info .license { margin-top: 8px; font-size: 0.78rem; color: #777; }
-  </style>
+		@keyframes slideIn {
+			from { transform: translateX(100%); opacity: 0; }
+			to   { transform: translateX(0); opacity: 1; }
+		}
+	</style>
 </head>
 <body>
-  <header>
-    <h1>Resonant Art Gallery</h1>
+	<!-- Splash-animatsioon -->
+	<div id="animation-page" aria-hidden="true">
+		<canvas id="canvas1"></canvas>
+	</div>
 
-    <div class="button-container">
-      <label for="providerSelect" style="position:absolute;left:-9999px;">Andmepakkuja</label>
-      <select id="providerSelect" aria-label="Data provider">
-        <option value="aic">Art Institute of Chicago</option>
-        <option value="met">The Met (New York)</option>
-      </select>
+	<!-- Galerii -->
+	<div id="gallery-page">
+		<h1>Resonant Art Gallery</h1>
 
-      <button class="inspire-btn" type="button">Inspire Me</button>
-      <button class="reset-btn" type="button">Clear History</button>
-    </div>
+		<div class="button-container">
+			<label for="providerSelect" class="sr-only" style="position: absolute; left: -9999px">Andmepakkuja</label>
+			<select id="providerSelect" aria-label="Data provider">
+				<option value="aic">Art Institute of Chicago</option>
+				<option value="met">The Met (New York)</option>
+			</select>
 
-    <div id="status" class="status" role="status" aria-live="polite"></div>
-  </header>
+			<button class="inspire-btn" type="button">Inspire Me</button>
+			<button class="reset-btn" type="button">Clear History</button>
+		</div>
 
-  <main>
-    <div class="content" aria-live="polite"></div>
-  </main>
+		<div id="loadingNotification" class="notification loading" role="status" aria-live="polite">Loading the art set…</div>
+		<div id="successNotification" class="notification success" role="status" aria-live="polite">Art set loaded!</div>
+		<div id="errorNotification" class="notification error" role="alert" aria-live="assertive"></div>
 
-  <script>
-    const contentEl = document.querySelector(".content");
-    const statusEl = document.getElementById("status");
-    const providerSelectEl = document.getElementById("providerSelect");
-    const inspireBtnEl = document.querySelector(".inspire-btn");
-    const resetBtnEl = document.querySelector(".reset-btn");
+		<div class="content" aria-live="polite"></div>
+	</div>
 
-    let provider = "aic";
-    let loadingController = null;
-    let seenIds = new Set();
+	<script>
+		/* Teksti puhastamine */
+		function decodeEntities(str) {
+			const txt = document.createElement("textarea");
+			txt.innerHTML = String(str ?? "");
+			return txt.value;
+		}
+		function stripTags(str) {
+			return String(str ?? "").replace(/<[^>]*>/g, "");
+		}
+		function normalizeSpaces(str) {
+			return String(str ?? "").replace(/\s+/g, " ").trim();
+		}
+		function cleanText(v) {
+			return normalizeSpaces(stripTags(decodeEntities(v)));
+		}
+		function escapeHTML(v) {
+			return String(v ?? "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#039;");
+		}
 
-    const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
-    const AIC_IMAGE_BASE = "https://www.artic.edu/iiif/2/";
-    const MET_SEARCH_TERMS = [
-      "painting", "portrait", "landscape", "flower", "woman", "man",
-      "sculpture", "vase", "textile", "drawing", "animal", "abstract"
-    ];
+		function createAbortError() {
+			const err = new Error("Request aborted");
+			err.name = "AbortError";
+			return err;
+		}
 
-    function cleanText(value) {
-      const div = document.createElement("div");
-      div.innerHTML = String(value ?? "");
-      return div.textContent.replace(/\s+/g, " ").trim();
-    }
+		function sleep(ms, signal) {
+			return new Promise((resolve, reject) => {
+				if (signal?.aborted) return reject(createAbortError());
+				const timeoutId = setTimeout(() => {
+					cleanup();
+					resolve();
+				}, ms);
+				function onAbort() {
+					clearTimeout(timeoutId);
+					cleanup();
+					reject(createAbortError());
+				}
+				function cleanup() {
+					if (signal) signal.removeEventListener("abort", onAbort);
+				}
+				if (signal) signal.addEventListener("abort", onAbort, { once: true });
+			});
+		}
 
-    function loadSeen() {
-      try {
-        seenIds = new Set(JSON.parse(localStorage.getItem("seen-artworks") || "[]"));
-      } catch {
-        seenIds = new Set();
-      }
-    }
+		function shuffle(items) {
+			const arr = items.slice();
+			for (let i = arr.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[arr[i], arr[j]] = [arr[j], arr[i]];
+			}
+			return arr;
+		}
 
-    function saveSeen() {
-      try {
-        localStorage.setItem("seen-artworks", JSON.stringify([...seenIds]));
-      } catch {}
-    }
+		/* Splash animatsioon */
+		const canvas = document.getElementById("canvas1");
+		const ctx = canvas.getContext("2d");
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
 
-    function setStatus(message, isError = false) {
-      statusEl.textContent = message;
-      statusEl.classList.toggle("error", isError);
-    }
+		let gradient = ctx.createRadialGradient(
+			canvas.width / 2, canvas.height / 2, 100,
+			canvas.width / 2, canvas.height / 2, canvas.width / 2
+		);
+		gradient.addColorStop(0, "magenta");
+		gradient.addColorStop(0.5, "cyan");
+		gradient.addColorStop(0.8, "#FF69B4");
+		gradient.addColorStop(0.9, "magenta");
 
-    function setLoading(isLoading) {
-      inspireBtnEl.disabled = isLoading;
-      providerSelectEl.disabled = isLoading;
-      resetBtnEl.disabled = isLoading;
-    }
+		class MatrixSymbol {
+			constructor(x, y, fontSize, canvasHeight) {
+				this.characters = "♡⚛︎♥︎☻⨂♡♘☂︎☀︎☻☾♘♡☂︎∞⚛︎♠︎♘∏⋈♥︎♛♝♘♚∑⚛︎♓︎♡♊︎♥︎☂︎☻♘★⥣⇓☂︎☻⚛︎♥︎❄︎☆£❀$¥€Ω×1⚛︎2⚛︎3♥︎4☂︎☂︎56♡♥︎78♡9✈︎⚤0⚛︎☻☂︎";
+				this.x = x;
+				this.y = y;
+				this.fontSize = fontSize;
+				this.text = "";
+				this.canvasHeight = canvasHeight;
+			}
+			draw(c) {
+				this.text = this.characters.charAt(Math.floor(Math.random() * this.characters.length));
+				c.fillText(this.text, this.x * this.fontSize, this.y * this.fontSize);
+				if (this.y * this.fontSize > this.canvasHeight && Math.random() > 0.98) this.y = 0;
+				else this.y += 1;
+			}
+		}
 
-    function delay(ms, signal) {
-      return new Promise((resolve, reject) => {
-        if (signal?.aborted) return reject(new DOMException("Aborted", "AbortError"));
-        const id = setTimeout(resolve, ms);
-        signal?.addEventListener("abort", () => {
-          clearTimeout(id);
-          reject(new DOMException("Aborted", "AbortError"));
-        }, { once: true });
-      });
-    }
+		class Effect {
+			constructor(w, h) {
+				this.canvasWidth = w;
+				this.canvasHeight = h;
+				this.fontSize = 20;
+				this.columns = Math.floor(this.canvasWidth / this.fontSize);
+				this.symbols = [];
+				this._init();
+			}
+			_init() {
+				for (let i = 0; i < this.columns; i++) {
+					this.symbols[i] = new MatrixSymbol(i, 0, this.fontSize, this.canvasHeight);
+				}
+			}
+			resize(w, h) {
+				this.canvasWidth = w;
+				this.canvasHeight = h;
+				this.columns = Math.floor(this.canvasWidth / this.fontSize);
+				this.symbols = [];
+				this._init();
+			}
+		}
 
-    async function fetchJSON(url, options = {}, timeoutMs = 10000) {
-      const timeoutController = new AbortController();
-      const externalSignal = options.signal;
-      const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+		const effect = new Effect(canvas.width, canvas.height);
+		let lastTime = 0;
+		const fps = 60;
+		const nextFrame = 1000 / fps;
+		let timer = 0;
+		let animationRunning = true;
 
-      function abortFromExternal() {
-        timeoutController.abort();
-      }
+		function animate(ts) {
+			if (!animationRunning) return;
+			const dt = ts - lastTime;
+			lastTime = ts;
+			if (timer > nextFrame) {
+				ctx.fillStyle = "rgba(0,0,0,0.05)";
+				ctx.textAlign = "center";
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				ctx.fillStyle = gradient;
+				ctx.font = effect.fontSize + "px monospace";
+				effect.symbols.forEach(s => s.draw(ctx));
+				timer = 0;
+			} else {
+				timer += dt;
+			}
+			requestAnimationFrame(animate);
+		}
+		animate(0);
 
-      if (externalSignal) {
-        if (externalSignal.aborted) timeoutController.abort();
-        else externalSignal.addEventListener("abort", abortFromExternal, { once: true });
-      }
+		window.addEventListener("resize", () => {
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+			effect.resize(canvas.width, canvas.height);
+			gradient = ctx.createRadialGradient(
+				canvas.width / 2, canvas.height / 2, 100,
+				canvas.width / 2, canvas.height / 2, canvas.width / 2
+			);
+			gradient.addColorStop(0, "magenta");
+			gradient.addColorStop(0.5, "cyan");
+			gradient.addColorStop(0.8, "#FF69B4");
+			gradient.addColorStop(0.9, "magenta");
+		});
 
-      try {
-        const response = await fetch(url, { ...options, signal: timeoutController.signal });
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-        return await response.json();
-      } finally {
-        clearTimeout(timeoutId);
-        if (externalSignal) externalSignal.removeEventListener("abort", abortFromExternal);
-      }
-    }
+		/* Teavitused */
+		const loadingNotification = document.getElementById("loadingNotification");
+		const successNotification = document.getElementById("successNotification");
+		const errorNotification = document.getElementById("errorNotification");
+		const notificationTimers = new WeakMap();
 
-    function shuffle(items) {
-      const arr = items.slice();
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr;
-    }
+		function hideNotification(el) {
+			const timerId = notificationTimers.get(el);
+			if (timerId) clearTimeout(timerId);
+			notificationTimers.delete(el);
+			el.style.display = "none";
+		}
 
-    function preloadImage(url, timeoutMs = 7000) {
-      return new Promise(resolve => {
-        if (!url) return resolve(false);
+		function showNotification(el, duration = 2000) {
+			[loadingNotification, successNotification, errorNotification].forEach(hideNotification);
+			el.style.display = "block";
+			if (duration) {
+				const timerId = setTimeout(() => hideNotification(el), duration);
+				notificationTimers.set(el, timerId);
+			}
+		}
 
-        const img = new Image();
-        let finished = false;
-        const timeoutId = setTimeout(() => finish(false), timeoutMs);
+		function showError(msg) {
+			errorNotification.textContent = msg || "Something went wrong.";
+			showNotification(errorNotification, 4500);
+			console.error("Error:", msg);
+		}
 
-        function finish(ok) {
-          if (finished) return;
-          finished = true;
-          clearTimeout(timeoutId);
-          img.onload = null;
-          img.onerror = null;
-          resolve(ok);
-        }
+		/* Andmepakkujad (AIC + Met) */
+		let provider = "aic";
+		let currentAbort = null;
+		let activeLoadPromise = null;
+		let activeLoadTarget = 0;
+		let loadToken = 0;
 
-        img.onload = () => finish(true);
-        img.onerror = () => finish(false);
-        img.src = url;
-      });
-    }
+		let metObjectIDsCacheByTerm = new Map();
+		let aicTotalCache = null;
 
-    async function fetchAICBatch(signal) {
-      const probeBody = {
-        limit: 1,
-        query: {
-          bool: {
-            must: [
-              { term: { is_public_domain: true } },
-              { exists: { field: "image_id" } }
-            ]
-          }
-        }
-      };
+		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
+		const AIC_FIELDS = ["id", "title", "image_id", "artist_display", "date_display", "medium_display", "description"];
+		const AIC_QUERY = {
+			bool: {
+				must: [
+					{ term: { is_public_domain: true } },
+					{ exists: { field: "image_id" } }
+				]
+			}
+		};
 
-      const probe = await fetchJSON(AIC_SEARCH_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(probeBody),
-        signal
-      }, 10000);
+		const SEARCH_TERMS = [
+			"painting", "portrait", "landscape", "woman", "man", "flower", "animal", "vase",
+			"sculpture", "drawing", "textile", "abstract", "nature", "city", "water", "still life"
+		];
 
-      const total = Number(probe?.pagination?.total) || 5000;
-      const limit = 60;
-      const maxOffset = Math.max(0, total - limit);
-      const offset = Math.floor(Math.random() * (maxOffset + 1));
+		async function fetchWithTimeout(url, { signal, timeoutMs = 7000, ...options } = {}) {
+			if (signal?.aborted) throw createAbortError();
 
-      const data = await fetchJSON(AIC_SEARCH_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          limit,
-          offset,
-          fields: ["id", "title", "image_id", "artist_display", "date_display", "medium_display", "description"],
-          query: probeBody.query
-        }),
-        signal
-      }, 10000);
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      return (data.data || [])
-        .filter(item => item.image_id)
-        .map(item => ({
-          id: `aic_${item.id}`,
-          title: cleanText(item.title || "Untitled"),
-          artist: cleanText(item.artist_display || "Artist Unknown"),
-          date: cleanText(item.date_display || ""),
-          medium: cleanText(item.medium_display || ""),
-          description: cleanText(item.description || ""),
-          imageUrl: `${AIC_IMAGE_BASE}${item.image_id}/full/843,/0/default.jpg`,
-          imageUrlLarge: `${AIC_IMAGE_BASE}${item.image_id}/full/1200,/0/default.jpg`,
-          license: "Public Domain"
-        }));
-    }
+			function onAbort() {
+				controller.abort();
+			}
 
-    async function fetchMetBatch(signal) {
-      const term = MET_SEARCH_TERMS[Math.floor(Math.random() * MET_SEARCH_TERMS.length)];
-      const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(term)}`;
-      const searchData = await fetchJSON(searchUrl, { signal }, 10000);
-      const ids = shuffle(searchData.objectIDs || []).slice(0, 80);
-      const results = [];
-      let index = 0;
-      const concurrency = 4;
+			if (signal) signal.addEventListener("abort", onAbort, { once: true });
 
-      async function worker() {
-        while (!signal.aborted && results.length < 24 && index < ids.length) {
-          const id = ids[index++];
+			try {
+				return await fetch(url, {
+					...options,
+					signal: controller.signal
+				});
+			} finally {
+				clearTimeout(timeoutId);
+				if (signal) signal.removeEventListener("abort", onAbort);
+			}
+		}
 
-          for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-              const obj = await fetchJSON(
-                `https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`,
-                { signal },
-                8000
-              );
+		async function fetchJsonWithTimeout(url, options = {}) {
+			const response = await fetchWithTimeout(url, options);
+			if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+			return response.json();
+		}
 
-              const small = obj.primaryImageSmall || obj.primaryImage;
-              const large = obj.primaryImage || obj.primaryImageSmall;
+		async function getAICTotal(signal) {
+			if (Number.isFinite(aicTotalCache) && aicTotalCache > 0) return aicTotalCache;
 
-              if (small || large) {
-                results.push({
-                  id: `met_${obj.objectID}`,
-                  title: cleanText(obj.title || "Untitled"),
-                  artist: cleanText(obj.artistDisplayName || "Artist Unknown"),
-                  date: cleanText(obj.objectDate || ""),
-                  medium: cleanText(obj.medium || ""),
-                  description: cleanText(obj.creditLine || ""),
-                  imageUrl: small || large,
-                  imageUrlLarge: large || small,
-                  license: "Open Access"
-                });
-              }
+			const probe = await fetchJsonWithTimeout(AIC_SEARCH_URL, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				signal,
+				timeoutMs: 9000,
+				body: JSON.stringify({ limit: 1, query: AIC_QUERY })
+			});
 
-              break;
-            } catch (error) {
-              if (error.name === "AbortError") throw error;
-              await delay(400 + attempt * 600, signal);
-            }
-          }
-        }
-      }
+			aicTotalCache = Number(probe?.pagination?.total) || 5000;
+			return aicTotalCache;
+		}
 
-      await Promise.all(Array.from({ length: concurrency }, worker));
-      return results;
-    }
+		function mapAICArtwork(a) {
+			if (!a?.image_id) return null;
+			return {
+				id: `aic_${a.id}`,
+				title: cleanText(a.title || "Untitled"),
+				imageUrl: `https://www.artic.edu/iiif/2/${a.image_id}/full/512,/0/default.jpg`,
+				imageUrlLarge: `https://www.artic.edu/iiif/2/${a.image_id}/full/1200,/0/default.jpg`,
+				artist: cleanText(a.artist_display || "Artist Unknown"),
+				date: cleanText(a.date_display || ""),
+				medium: cleanText(a.medium_display || ""),
+				description: cleanText(a.description || ""),
+				license: "Public Domain"
+			};
+		}
 
-    async function getRenderableArtworks(count, signal) {
-      const renderable = [];
-      let attempts = 0;
+		async function fetchAICBatch(limit = 60, signal) {
+			try {
+				const total = await getAICTotal(signal);
+				const maxOffset = Math.max(0, total - limit);
+				const offset = maxOffset ? Math.floor(Math.random() * (maxOffset + 1)) : 0;
 
-      while (renderable.length < count && attempts < 4) {
-        attempts++;
-        const batch = provider === "met"
-          ? await fetchMetBatch(signal)
-          : await fetchAICBatch(signal);
+				const data = await fetchJsonWithTimeout(AIC_SEARCH_URL, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					signal,
+					timeoutMs: 10000,
+					body: JSON.stringify({
+						limit,
+						offset,
+						fields: AIC_FIELDS,
+						query: AIC_QUERY
+					})
+				});
 
-        const candidates = batch.filter(item => !seenIds.has(item.id));
+				const mapped = (data.data || []).map(mapAICArtwork).filter(Boolean);
+				if (mapped.length) return mapped;
+			} catch (e) {
+				if (e.name !== "AbortError") console.warn("AIC POST failed, trying GET fallback:", e);
+			}
 
-        for (const artwork of candidates) {
-          if (renderable.length >= count) break;
-          const ok = await preloadImage(artwork.imageUrl);
-          if (ok) renderable.push(artwork);
-        }
-      }
+			// Fallback: AIC dokumentatsiooni järgi töötab search ka GET-päringuga.
+			try {
+				const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
+				const params = new URLSearchParams();
+				params.set("q", term);
+				params.set("query[term][is_public_domain]", "true");
+				params.set("limit", "100");
+				params.set("fields", AIC_FIELDS.join(","));
 
-      return renderable;
-    }
+				const firstPage = await fetchJsonWithTimeout(`${AIC_SEARCH_URL}?${params.toString()}`, {
+					signal,
+					timeoutMs: 10000
+				});
 
-    function makeCard(artwork) {
-      const card = document.createElement("article");
-      card.className = "artwork-card";
+				const totalPages = Number(firstPage?.pagination?.total_pages) || 1;
+				const safeMaxPage = Math.max(1, Math.min(totalPages, 100));
+				const page = Math.floor(Math.random() * safeMaxPage) + 1;
 
-      const link = document.createElement("a");
-      link.href = artwork.imageUrlLarge || artwork.imageUrl;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+				if (page > 1) {
+					params.set("page", String(page));
+					const data = await fetchJsonWithTimeout(`${AIC_SEARCH_URL}?${params.toString()}`, {
+						signal,
+						timeoutMs: 10000
+					});
+					return (data.data || []).map(mapAICArtwork).filter(Boolean).slice(0, limit);
+				}
 
-      const img = new Image();
-      img.loading = "eager";
-      img.decoding = "async";
-      img.alt = artwork.title;
-      img.src = artwork.imageUrl;
+				return (firstPage.data || []).map(mapAICArtwork).filter(Boolean).slice(0, limit);
+			} catch (e) {
+				if (e.name !== "AbortError") console.error("AIC fallback failed:", e);
+				return [];
+			}
+		}
 
-      link.appendChild(img);
+		async function ensureMetIDs(signal) {
+			const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
+			if (metObjectIDsCacheByTerm.has(term)) return metObjectIDsCacheByTerm.get(term);
 
-      const info = document.createElement("div");
-      info.className = "artwork-info";
+			const url = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(term)}`;
+			const js = await fetchJsonWithTimeout(url, { signal, timeoutMs: 10000 });
+			const ids = Array.isArray(js.objectIDs) ? js.objectIDs : [];
+			metObjectIDsCacheByTerm.set(term, ids);
+			return ids;
+		}
 
-      const title = document.createElement("h3");
-      title.textContent = artwork.title;
+		async function fetchMetBatch(targetCount = 60, signal) {
+			try {
+				const ids = shuffle(await ensureMetIDs(signal));
+				if (!ids.length) return [];
 
-      const artist = document.createElement("p");
-      artist.textContent = artwork.artist;
+				const picked = [];
+				let idx = 0;
+				const maxTries = Math.min(ids.length, 350);
+				const concurrency = 5;
 
-      const date = document.createElement("p");
-      date.className = "date";
-      date.textContent = artwork.date;
+				async function worker() {
+					while (!signal?.aborted && picked.length < targetCount && idx < maxTries) {
+						const id = ids[idx++];
 
-      const license = document.createElement("p");
-      license.className = "license";
-      license.textContent = artwork.license;
+						for (let tries = 0; tries < 3; tries++) {
+							try {
+								const r = await fetchWithTimeout(
+									`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`,
+									{ signal, timeoutMs: 7000 }
+								);
 
-      info.append(title, artist, date, license);
-      card.append(link, info);
-      return card;
-    }
+								if (r.status === 429 || r.status === 403) {
+									await sleep(550 + tries * 700 + Math.random() * 300, signal);
+									continue;
+								}
 
-    function renderGallery(items) {
-      contentEl.innerHTML = "";
-      items.forEach(item => contentEl.appendChild(makeCard(item)));
-    }
+								if (!r.ok) break;
 
-    async function showNewGallery() {
-      if (loadingController) loadingController.abort();
-      loadingController = new AbortController();
-      const signal = loadingController.signal;
+								const o = await r.json();
+								const smallImage = o.primaryImageSmall || o.primaryImage;
+								const largeImage = o.primaryImage || o.primaryImageSmall;
 
-      setLoading(true);
-      setStatus(provider === "met" ? "Loading images from The Met…" : "Loading images from Art Institute of Chicago…");
+								if (smallImage || largeImage) {
+									picked.push({
+										id: `met_${o.objectID}`,
+										title: cleanText(o.title || "Untitled"),
+										imageUrl: smallImage || largeImage,
+										imageUrlLarge: largeImage || smallImage,
+										artist: cleanText(o.artistDisplayName || "Artist Unknown"),
+										date: cleanText(o.objectDate || ""),
+										medium: cleanText(o.medium || ""),
+										description: cleanText(o.creditLine || ""),
+										license: "Open Access"
+									});
+								}
 
-      try {
-        const artworks = await getRenderableArtworks(6, signal);
+								break;
+							} catch (e) {
+								if (e.name === "AbortError") throw e;
+								await sleep(300 + tries * 450, signal).catch(() => {});
+							}
+						}
+					}
+				}
 
-        if (!artworks.length) {
-          setStatus("Pilte ei õnnestunud laadida. Proovi uuesti või vali teine API.", true);
-          return;
-        }
+				await Promise.all(Array.from({ length: concurrency }, () => worker()));
+				return picked.slice(0, targetCount);
+			} catch (e) {
+				if (e.name !== "AbortError") console.error("MET batch failed:", e);
+				return [];
+			}
+		}
 
-        artworks.forEach(item => seenIds.add(item.id));
-        saveSeen();
-        renderGallery(artworks);
-        setStatus(`Loaded ${artworks.length} images.`);
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          console.error(error);
-          setStatus("API ühendus ebaõnnestus. Ava Console, kui soovid veateadet näha.", true);
-        }
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
-    }
+		/* Ujukogu (pool) */
+		const POOL_TARGET = 72;
+		const STARTUP_POOL_TARGET = 24;
+		const TOP_UP_AT = 12;
+		let artworksPool = [];
+		let seenIds = new Set();
 
-    providerSelectEl.addEventListener("change", event => {
-      provider = event.target.value;
-      showNewGallery();
-    });
+		function loadSeen() {
+			try {
+				const raw = localStorage.getItem("seen-artworks") || "[]";
+				seenIds = new Set(JSON.parse(raw));
+			} catch {
+				seenIds = new Set();
+			}
+		}
+		function saveSeen() {
+			try {
+				localStorage.setItem("seen-artworks", JSON.stringify([...seenIds]));
+			} catch {}
+		}
+		function abortActiveLoad() {
+			loadToken++;
+			if (currentAbort) currentAbort.abort();
+			currentAbort = null;
+			activeLoadPromise = null;
+			activeLoadTarget = 0;
+			hideNotification(loadingNotification);
+		}
 
-    inspireBtnEl.addEventListener("click", showNewGallery);
+		async function fillPool(minNeeded = POOL_TARGET, { silent = false } = {}) {
+			if (artworksPool.length >= minNeeded) return artworksPool;
 
-    resetBtnEl.addEventListener("click", () => {
-      seenIds.clear();
-      saveSeen();
-      showNewGallery();
-    });
+			activeLoadTarget = Math.max(activeLoadTarget, minNeeded);
+			if (activeLoadPromise) return activeLoadPromise;
 
-    loadSeen();
-    showNewGallery();
-  </script>
+			const token = loadToken;
+			const controller = new AbortController();
+			currentAbort = controller;
+
+			if (!silent) showNotification(loadingNotification, 0);
+
+			activeLoadPromise = (async () => {
+				try {
+					let attempts = 0;
+
+					while (
+						token === loadToken &&
+						!controller.signal.aborted &&
+						artworksPool.length < activeLoadTarget &&
+						attempts < 5
+					) {
+						attempts++;
+
+						const batch = provider === "met"
+							? await fetchMetBatch(60, controller.signal)
+							: await fetchAICBatch(60, controller.signal);
+
+						const uniques = batch.filter(a => !seenIds.has(a.id));
+						artworksPool.push(...uniques);
+
+						const byId = new Map();
+						artworksPool.forEach(a => {
+							if (!byId.has(a.id)) byId.set(a.id, a);
+						});
+						artworksPool = Array.from(byId.values()).slice(0, POOL_TARGET);
+
+						if (!batch.length) await sleep(400 * attempts, controller.signal).catch(() => {});
+					}
+
+					if (token === loadToken && !silent) {
+						if (artworksPool.length) showNotification(successNotification, 1200);
+						else showError("No images found. Try again or choose the other API.");
+					}
+
+					return artworksPool;
+				} catch (e) {
+					if (e.name !== "AbortError") {
+						console.error("Pool loading failed:", e);
+						if (!silent) showError("Images could not be loaded. Try again or choose the other API.");
+					}
+					return artworksPool;
+				} finally {
+					if (token === loadToken) {
+						hideNotification(loadingNotification);
+						currentAbort = null;
+						activeLoadPromise = null;
+						activeLoadTarget = 0;
+					}
+				}
+			})();
+
+			return activeLoadPromise;
+		}
+
+		/* Kaart + detailileht */
+		const contentEl = document.querySelector(".content");
+
+		function preloadImage(url, timeoutMs = 9000) {
+			return new Promise(resolve => {
+				if (!url) return resolve(false);
+
+				const img = new Image();
+				let done = false;
+				const timeoutId = setTimeout(() => finish(false), timeoutMs);
+
+				function finish(ok) {
+					if (done) return;
+					done = true;
+					clearTimeout(timeoutId);
+					img.onload = null;
+					img.onerror = null;
+					resolve(ok);
+				}
+
+				img.onload = () => finish(true);
+				img.onerror = () => finish(false);
+				img.decoding = "async";
+				img.src = url;
+			});
+		}
+
+		async function takeRenderableArtworks(count = 6) {
+			const ready = [];
+			let rounds = 0;
+
+			while (ready.length < count && rounds < 6) {
+				rounds++;
+
+				if (artworksPool.length < count) {
+					await fillPool(Math.max(STARTUP_POOL_TARGET, count), { silent: rounds > 1 });
+				}
+
+				const candidates = artworksPool.splice(0, Math.min(18, artworksPool.length));
+				if (!candidates.length) break;
+
+				const results = await Promise.all(candidates.map(async artwork => ({
+					artwork,
+					ok: await preloadImage(artwork.imageUrl)
+				})));
+
+				const stillGood = [];
+				for (const result of results) {
+					if (result.ok && ready.length < count) ready.push(result.artwork);
+					else if (result.ok) stillGood.push(result.artwork);
+					else seenIds.add(result.artwork.id);
+				}
+
+				if (stillGood.length) artworksPool.unshift(...stillGood);
+			}
+
+			return ready;
+		}
+
+		function makeDetailPageUrl(artwork, fullImageUrl) {
+			const title = cleanText(artwork.title || "Untitled");
+			const artist = cleanText(artwork.artist || "Artist Unknown");
+			const date = cleanText(artwork.date || "");
+			const medium = cleanText(artwork.medium || "");
+			const desc = cleanText(artwork.description || "");
+			const license = cleanText(artwork.license || "");
+
+			const safeTitle = escapeHTML(title);
+			const safeArtist = escapeHTML(artist);
+			const safeDate = escapeHTML(date);
+			const safeMedium = escapeHTML(medium);
+			const safeDesc = escapeHTML(desc);
+			const safeLicense = escapeHTML(license);
+			const safeImageUrl = escapeHTML(fullImageUrl);
+
+			const html = `<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>${safeTitle}</title>
+<style>
+:root { --text:#333; --muted:#888; --bg:#f5f5f5; }
+body { font-family:"Franklin Gothic Medium","Arial Narrow",Arial,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:20px; }
+.wrap { max-width:1100px; margin:0 auto; }
+img { max-width:100%; height:auto; display:block; border-radius:8px; margin-bottom:16px; }
+.caption { padding: 15px 0 0 0; }
+.caption-title { margin:0 0 8px 0; font-size:1.1rem; font-weight:400; color:#222; }
+.caption-line { margin:0; font-size:0.9rem; color:#666; }
+.caption-date { margin-top:5px; font-size:0.8rem; color:var(--muted); }
+.desc { margin-top:12px; font-size:0.95rem; line-height:1.45; white-space:pre-wrap; color:#333; }
+.license { margin-top:12px; font-size:0.85rem; color:#555; }
+.actions { margin-top:14px; }
+.btn { display:inline-block; background:#65105b; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+	<img src="${safeImageUrl}" alt="${safeTitle}"/>
+	<div class="caption">
+		<div class="caption-title">${safeTitle}</div>
+		<p class="caption-line">${safeArtist}</p>
+		<p class="caption-date">${safeDate}</p>
+	</div>
+	${safeMedium ? `<p class="caption-line">${safeMedium}</p>` : ""}
+	${safeDesc ? `<div class="desc">${safeDesc}</div>` : ""}
+	${safeLicense ? `<div class="license">${safeLicense}</div>` : ""}
+	<div class="actions">
+		<a class="btn" href="${safeImageUrl}" target="_blank" rel="noopener noreferrer">Open image in original size</a>
+	</div>
+</div>
+</body>
+</html>`;
+
+			const blob = new Blob([html], { type: "text/html" });
+			return URL.createObjectURL(blob);
+		}
+
+		function makeCard(artwork) {
+			const card = document.createElement("article");
+			card.className = "artwork-card";
+
+			const img = new Image();
+			img.loading = "eager";
+			img.fetchPriority = "high";
+			img.decoding = "async";
+			img.alt = artwork.title || "Artwork image";
+			img.src = artwork.imageUrl;
+
+			img.addEventListener("error", () => {
+				card.remove();
+				showError("One image failed to load. Press Inspire Me to get a new set.");
+			}, { once: true });
+
+			const detailUrl = makeDetailPageUrl(artwork, artwork.imageUrlLarge || artwork.imageUrl);
+
+			const link = document.createElement("a");
+			link.href = detailUrl;
+			link.target = "_blank";
+			link.rel = "noopener noreferrer";
+			link.appendChild(img);
+
+			const info = document.createElement("div");
+			info.className = "artwork-info";
+
+			const h3 = document.createElement("h3");
+			h3.textContent = artwork.title || "Untitled";
+
+			const pArtist = document.createElement("p");
+			pArtist.textContent = artwork.artist || "Artist Unknown";
+
+			const pDate = document.createElement("p");
+			pDate.className = "date";
+			pDate.textContent = artwork.date || "";
+
+			const pLicense = document.createElement("p");
+			pLicense.className = "license";
+			pLicense.textContent = artwork.license || "";
+
+			info.appendChild(h3);
+			info.appendChild(pArtist);
+			info.appendChild(pDate);
+			info.appendChild(pLicense);
+
+			card.appendChild(link);
+			card.appendChild(info);
+			return card;
+		}
+
+		function renderSix(items) {
+			contentEl.innerHTML = "";
+			items.forEach(a => contentEl.appendChild(makeCard(a)));
+		}
+
+		async function showSixNew() {
+			const inspireBtnEl = document.querySelector(".inspire-btn");
+			const providerSelectEl = document.getElementById("providerSelect");
+			const resetBtnEl = document.querySelector(".reset-btn");
+
+			inspireBtnEl.disabled = true;
+			providerSelectEl.disabled = true;
+			resetBtnEl.disabled = true;
+			showNotification(loadingNotification, 0);
+
+			try {
+				const nextSix = await takeRenderableArtworks(6);
+
+				if (!nextSix.length) {
+					showError("No images found. Try again or choose the other API.");
+					return;
+				}
+
+				nextSix.forEach(a => seenIds.add(a.id));
+				saveSeen();
+				renderSix(nextSix);
+				showNotification(successNotification, 1200);
+
+				if (artworksPool.length < TOP_UP_AT) {
+					fillPool(POOL_TARGET, { silent: true }).catch(() => {});
+				}
+			} catch (e) {
+				if (e.name !== "AbortError") {
+					console.error(e);
+					showError("Images could not be shown. Try again or choose the other API.");
+				}
+			} finally {
+				hideNotification(loadingNotification);
+				inspireBtnEl.disabled = false;
+				providerSelectEl.disabled = false;
+				resetBtnEl.disabled = false;
+			}
+		}
+
+		function resetHistory() {
+			seenIds.clear();
+			saveSeen();
+			artworksPool = [];
+			showSixNew();
+		}
+
+		/* UI sündmused */
+		const providerSelectEl = document.getElementById("providerSelect");
+		const inspireBtnEl = document.querySelector(".inspire-btn");
+		const resetBtnEl = document.querySelector(".reset-btn");
+
+		providerSelectEl.addEventListener("change", async (e) => {
+			provider = e.target.value;
+			abortActiveLoad();
+			artworksPool = [];
+			contentEl.innerHTML = "";
+			await showSixNew();
+		});
+		inspireBtnEl.addEventListener("click", showSixNew);
+		resetBtnEl.addEventListener("click", resetHistory);
+
+		/* Käivitus – API laadimine algab kohe splashi ajal */
+		loadSeen();
+		fillPool(STARTUP_POOL_TARGET, { silent: true }).catch(() => {});
+
+		setTimeout(() => {
+			const animationPage = document.getElementById("animation-page");
+			const galleryPage = document.getElementById("gallery-page");
+			animationPage.classList.add("fade-out");
+
+			setTimeout(async () => {
+				animationRunning = false;
+				const ctx2 = canvas.getContext("2d");
+				ctx2.clearRect(0, 0, canvas.width, canvas.height);
+				galleryPage.style.display = "block";
+				animationPage.style.display = "none";
+				await showSixNew();
+			}, 1000);
+		}, 3000);
+	</script>
 </body>
 </html>
