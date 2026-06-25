@@ -556,47 +556,40 @@
 		}
 
 		async function fetchAICBatch(signal) {
-			const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
-			const attempts = [];
+	const results = [];
 
-			const publicParams = new URLSearchParams();
-			publicParams.set("q", term);
-			publicParams.set("limit", "100");
-			publicParams.set("fields", AIC_FIELDS.join(","));
-			publicParams.set("query[term][is_public_domain]", "true");
-			attempts.push(`${AIC_SEARCH_URL}?${publicParams.toString()}`);
+	for (let attempt = 0; attempt < 5 && results.length < 24; attempt++) {
+		try {
+			const page = Math.floor(Math.random() * 250) + 1;
 
-			const simpleParams = new URLSearchParams();
-			simpleParams.set("q", term);
-			simpleParams.set("limit", "100");
-			simpleParams.set("fields", AIC_FIELDS.join(","));
-			attempts.push(`${AIC_SEARCH_URL}?${simpleParams.toString()}`);
+			const params = new URLSearchParams();
+			params.set("page", String(page));
+			params.set("limit", "100");
+			params.set("fields", AIC_FIELDS.join(","));
 
-			for (const firstUrl of attempts) {
-				try {
-					const firstPage = await fetchJSON(firstUrl, { signal, timeoutMs: 10000 });
-					const totalPages = Number(firstPage?.pagination?.total_pages) || 1;
-					const safeMaxPage = Math.max(1, Math.min(totalPages, 50));
-					const randomPage = Math.floor(Math.random() * safeMaxPage) + 1;
+			const url = `https://api.artic.edu/api/v1/artworks?${params.toString()}`;
+			const data = await fetchJSON(url, { signal, timeoutMs: 10000 });
 
-					let data = firstPage;
-					if (randomPage > 1) {
-						const url = new URL(firstUrl);
-						url.searchParams.set("page", String(randomPage));
-						data = await fetchJSON(url.toString(), { signal, timeoutMs: 10000 });
-					}
+			const mapped = (data.data || [])
+				.map(mapAICArtwork)
+				.filter(Boolean);
 
-					const mapped = shuffle((data.data || []).map(mapAICArtwork).filter(Boolean));
-					if (mapped.length) return mapped;
-				} catch (error) {
-					if (error.name === "AbortError") throw error;
-					console.warn("AIC request failed, trying fallback:", error);
-				}
-			}
-
-			return [];
+			results.push(...mapped);
+		} catch (error) {
+			if (error.name === "AbortError") throw error;
+			console.warn("AIC artworks request failed:", error);
 		}
+	}
 
+	const byId = new Map();
+	for (const item of results) {
+		if (item?.id && item?.imageUrl && !byId.has(item.id)) {
+			byId.set(item.id, item);
+		}
+	}
+
+	return shuffle(Array.from(byId.values()));
+}
 		async function fetchMetBatch(signal) {
 			const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
 			const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(term)}`;
