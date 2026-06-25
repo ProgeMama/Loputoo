@@ -837,57 +837,81 @@ img {
 			return URL.createObjectURL(blob);
 		}
 
-		function makeCard(artwork) {
-			const card = document.createElement("article");
-			card.className = "artwork-card";
+		function createArtworkImage(artwork) {
+	const img = new Image();
+	img.loading = "eager";
+	img.decoding = "async";
+	img.alt = artwork.title || "Artwork image";
 
-			const link = document.createElement("a");
-			link.href = makeDetailPageUrl(artwork);
-			link.target = "_blank";
-			link.rel = "noopener noreferrer";
+	const sources = [
+		artwork.imageUrl,
+		...(artwork.imageCandidates || []),
+		artwork.fallbackImageUrl
+	].filter(Boolean);
 
-			const img = new Image();
-			img.loading = "eager";
-			img.decoding = "async";
-			img.alt = artwork.title || "Artwork image";
-			img.src = artwork.imageUrl;
+	let sourceIndex = 0;
 
-			img.addEventListener("error", () => {
-				const fallback = document.createElement("div");
-				fallback.className = "broken-image";
-				fallback.textContent = "Image could not be loaded";
-				img.replaceWith(fallback);
-			}, { once: true });
+	function showBrokenImage() {
+		const fallback = document.createElement("div");
+		fallback.className = "broken-image";
+		fallback.textContent = "Image could not be loaded";
+		img.replaceWith(fallback);
+	}
 
-			link.appendChild(img);
+	img.addEventListener("error", () => {
+		sourceIndex += 1;
 
-			const info = document.createElement("div");
-			info.className = "artwork-info";
-
-			const title = document.createElement("h3");
-			title.textContent = artwork.title || "Untitled";
-
-			const artist = document.createElement("p");
-			artist.textContent = artwork.artist || "Artist Unknown";
-
-			const date = document.createElement("p");
-			date.className = "date";
-			date.textContent = artwork.date || "";
-
-			const license = document.createElement("p");
-			license.className = "license";
-			license.textContent = artwork.license || "";
-
-			info.appendChild(title);
-			info.appendChild(artist);
-			info.appendChild(date);
-			info.appendChild(license);
-
-			card.appendChild(link);
-			card.appendChild(info);
-
-			return card;
+		if (sourceIndex < sources.length) {
+			img.src = sources[sourceIndex];
+		} else {
+			showBrokenImage();
 		}
+	});
+
+	img.src = sources[0] || "";
+
+	return img;
+}
+
+function makeCard(artwork) {
+	const card = document.createElement("article");
+	card.className = "artwork-card";
+
+	const link = document.createElement("a");
+	link.href = makeDetailPageUrl(artwork);
+	link.target = "_blank";
+	link.rel = "noopener noreferrer";
+
+	const img = createArtworkImage(artwork);
+	link.appendChild(img);
+
+	const info = document.createElement("div");
+	info.className = "artwork-info";
+
+	const title = document.createElement("h3");
+	title.textContent = artwork.title || "Untitled";
+
+	const artist = document.createElement("p");
+	artist.textContent = artwork.artist || "Artist Unknown";
+
+	const date = document.createElement("p");
+	date.className = "date";
+	date.textContent = artwork.date || "";
+
+	const license = document.createElement("p");
+	license.className = "license";
+	license.textContent = artwork.license || "";
+
+	info.appendChild(title);
+	info.appendChild(artist);
+	info.appendChild(date);
+	info.appendChild(license);
+
+	card.appendChild(link);
+	card.appendChild(info);
+
+	return card;
+}
 
 		function renderGallery(artworks) {
 			contentEl.innerHTML = "";
