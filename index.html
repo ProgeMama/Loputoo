@@ -15,7 +15,11 @@
 	<link href="https://fonts.googleapis.com/css2?family=Foldit:wght@400&display=swap" rel="stylesheet" />
 
 	<style>
-		* { box-sizing: border-box; margin: 0; padding: 0; }
+		* {
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+		}
 
 		body {
 			font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
@@ -86,12 +90,6 @@
 			min-width: 260px;
 		}
 
-		select:disabled,
-		button:disabled {
-			opacity: 0.6;
-			cursor: wait;
-		}
-
 		.inspire-btn {
 			background-color: #65105b;
 			color: white;
@@ -112,21 +110,43 @@
 			color: #111;
 		}
 
+		button:disabled,
+		select:disabled {
+			opacity: 0.6;
+			cursor: wait;
+		}
+
+		.status {
+			text-align: center;
+			margin: 0 auto 20px;
+			min-height: 24px;
+			color: #65105b;
+			font-size: 0.95rem;
+		}
+
+		.status.error {
+			color: #c62828;
+		}
+
 		.content {
 			display: grid;
 			grid-template-columns: repeat(3, 1fr);
 			gap: 25px;
 			max-width: 1200px;
 			width: 100%;
-			margin: 0 auto;
+			margin: 0 auto 40px;
 		}
 
 		@media (max-width: 900px) {
-			.content { grid-template-columns: repeat(2, 1fr); }
+			.content {
+				grid-template-columns: repeat(2, 1fr);
+			}
 		}
 
 		@media (max-width: 600px) {
-			.content { grid-template-columns: 1fr; }
+			.content {
+				grid-template-columns: 1fr;
+			}
 		}
 
 		.artwork-card,
@@ -136,11 +156,9 @@
 			overflow: hidden;
 			box-shadow: 0 3px 10px rgba(0,0,0,0.1);
 			transition: transform 0.3s ease, box-shadow 0.3s ease;
-			outline: none;
 		}
 
-		.artwork-card:hover,
-		.artwork-card:focus-within {
+		.artwork-card:hover {
 			transform: translateY(-5px);
 			box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 		}
@@ -151,20 +169,23 @@
 		}
 
 		.artwork-card img,
-		.loading-image {
+		.loading-image,
+		.broken-image {
 			width: 100%;
 			height: 300px;
 			object-fit: cover;
 			display: block;
-			background: linear-gradient(110deg, #e6e6e6, #f8f8f8, #e6e6e6);
+			background: #ddd;
 		}
 
-		.loading-image {
+		.loading-image,
+		.broken-image {
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			color: #777;
-			font-size: 0.95rem;
+			color: #666;
+			text-align: center;
+			padding: 20px;
 		}
 
 		.artwork-info,
@@ -197,18 +218,6 @@
 			color: #777;
 		}
 
-		.broken-image {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			width: 100%;
-			height: 300px;
-			background: #ddd;
-			color: #555;
-			text-align: center;
-			padding: 20px;
-		}
-
 		.notification {
 			position: fixed;
 			top: 20px;
@@ -228,15 +237,27 @@
 			color: #111;
 		}
 
-		.success { background-color: #65105b; }
-		.error { background-color: #dc3545; }
+		.success {
+			background-color: #65105b;
+		}
+
+		.error {
+			background-color: #dc3545;
+		}
 
 		@keyframes slideIn {
-			from { transform: translateX(100%); opacity: 0; }
-			to   { transform: translateX(0); opacity: 1; }
+			from {
+				transform: translateX(100%);
+				opacity: 0;
+			}
+			to {
+				transform: translateX(0);
+				opacity: 1;
+			}
 		}
 	</style>
 </head>
+
 <body>
 	<div id="animation-page" aria-hidden="true">
 		<canvas id="canvas1"></canvas>
@@ -247,6 +268,7 @@
 
 		<div class="button-container">
 			<label for="providerSelect" style="position: absolute; left: -9999px">Andmepakkuja</label>
+
 			<select id="providerSelect" aria-label="Data provider">
 				<option value="aic">Art Institute of Chicago</option>
 				<option value="met">The Met (New York)</option>
@@ -256,34 +278,28 @@
 			<button class="reset-btn" type="button">Clear History</button>
 		</div>
 
-		<div id="loadingNotification" class="notification loading" role="status" aria-live="polite">Loading the art set…</div>
-		<div id="successNotification" class="notification success" role="status" aria-live="polite">Art set loaded!</div>
+		<div id="status" class="status" role="status" aria-live="polite"></div>
+
+		<div id="loadingNotification" class="notification loading" role="status" aria-live="polite">
+			Loading the art set…
+		</div>
+		<div id="successNotification" class="notification success" role="status" aria-live="polite">
+			Art set loaded!
+		</div>
 		<div id="errorNotification" class="notification error" role="alert" aria-live="assertive"></div>
 
 		<div class="content" aria-live="polite"></div>
 	</div>
 
 	<script>
-		function decodeEntities(str) {
-			const txt = document.createElement("textarea");
-			txt.innerHTML = String(str ?? "");
-			return txt.value;
+		function cleanText(value) {
+			const div = document.createElement("div");
+			div.innerHTML = String(value ?? "");
+			return div.textContent.replace(/\s+/g, " ").trim();
 		}
 
-		function stripTags(str) {
-			return String(str ?? "").replace(/<[^>]*>/g, "");
-		}
-
-		function normalizeSpaces(str) {
-			return String(str ?? "").replace(/\s+/g, " ").trim();
-		}
-
-		function cleanText(v) {
-			return normalizeSpaces(stripTags(decodeEntities(v)));
-		}
-
-		function escapeHTML(v) {
-			return String(v ?? "")
+		function escapeHTML(value) {
+			return String(value ?? "")
 				.replace(/&/g, "&amp;")
 				.replace(/</g, "&lt;")
 				.replace(/>/g, "&gt;")
@@ -291,33 +307,8 @@
 				.replace(/'/g, "&#039;");
 		}
 
-		function createAbortError() {
-			const err = new Error("Request aborted");
-			err.name = "AbortError";
-			return err;
-		}
-
-		function sleep(ms, signal) {
-			return new Promise((resolve, reject) => {
-				if (signal?.aborted) return reject(createAbortError());
-
-				const timeoutId = setTimeout(() => {
-					cleanup();
-					resolve();
-				}, ms);
-
-				function onAbort() {
-					clearTimeout(timeoutId);
-					cleanup();
-					reject(createAbortError());
-				}
-
-				function cleanup() {
-					if (signal) signal.removeEventListener("abort", onAbort);
-				}
-
-				if (signal) signal.addEventListener("abort", onAbort, { once: true });
-			});
+		function sleep(ms) {
+			return new Promise(resolve => setTimeout(resolve, ms));
 		}
 
 		function shuffle(items) {
@@ -329,8 +320,10 @@
 			return arr;
 		}
 
+		/* Splash animation */
 		const canvas = document.getElementById("canvas1");
 		const ctx = canvas.getContext("2d");
+
 		canvas.width = window.innerWidth;
 		canvas.height = window.innerHeight;
 
@@ -338,6 +331,7 @@
 			canvas.width / 2, canvas.height / 2, 100,
 			canvas.width / 2, canvas.height / 2, canvas.width / 2
 		);
+
 		gradient.addColorStop(0, "magenta");
 		gradient.addColorStop(0.5, "cyan");
 		gradient.addColorStop(0.8, "#FF69B4");
@@ -353,18 +347,22 @@
 				this.canvasHeight = canvasHeight;
 			}
 
-			draw(c) {
+			draw(context) {
 				this.text = this.characters.charAt(Math.floor(Math.random() * this.characters.length));
-				c.fillText(this.text, this.x * this.fontSize, this.y * this.fontSize);
-				if (this.y * this.fontSize > this.canvasHeight && Math.random() > 0.98) this.y = 0;
-				else this.y += 1;
+				context.fillText(this.text, this.x * this.fontSize, this.y * this.fontSize);
+
+				if (this.y * this.fontSize > this.canvasHeight && Math.random() > 0.98) {
+					this.y = 0;
+				} else {
+					this.y += 1;
+				}
 			}
 		}
 
 		class Effect {
-			constructor(w, h) {
-				this.canvasWidth = w;
-				this.canvasHeight = h;
+			constructor(width, height) {
+				this.canvasWidth = width;
+				this.canvasHeight = height;
 				this.fontSize = 20;
 				this.columns = Math.floor(this.canvasWidth / this.fontSize);
 				this.symbols = [];
@@ -377,9 +375,9 @@
 				}
 			}
 
-			resize(w, h) {
-				this.canvasWidth = w;
-				this.canvasHeight = h;
+			resize(width, height) {
+				this.canvasWidth = width;
+				this.canvasHeight = height;
 				this.columns = Math.floor(this.canvasWidth / this.fontSize);
 				this.symbols = [];
 				this.init();
@@ -393,11 +391,11 @@
 		let timer = 0;
 		let animationRunning = true;
 
-		function animate(ts) {
+		function animate(timestamp) {
 			if (!animationRunning) return;
 
-			const dt = ts - lastTime;
-			lastTime = ts;
+			const deltaTime = timestamp - lastTime;
+			lastTime = timestamp;
 
 			if (timer > nextFrame) {
 				ctx.fillStyle = "rgba(0,0,0,0.05)";
@@ -405,10 +403,10 @@
 				ctx.fillRect(0, 0, canvas.width, canvas.height);
 				ctx.fillStyle = gradient;
 				ctx.font = effect.fontSize + "px monospace";
-				effect.symbols.forEach(s => s.draw(ctx));
+				effect.symbols.forEach(symbol => symbol.draw(ctx));
 				timer = 0;
 			} else {
-				timer += dt;
+				timer += deltaTime;
 			}
 
 			requestAnimationFrame(animate);
@@ -420,80 +418,116 @@
 			canvas.width = window.innerWidth;
 			canvas.height = window.innerHeight;
 			effect.resize(canvas.width, canvas.height);
+
 			gradient = ctx.createRadialGradient(
 				canvas.width / 2, canvas.height / 2, 100,
 				canvas.width / 2, canvas.height / 2, canvas.width / 2
 			);
+
 			gradient.addColorStop(0, "magenta");
 			gradient.addColorStop(0.5, "cyan");
 			gradient.addColorStop(0.8, "#FF69B4");
 			gradient.addColorStop(0.9, "magenta");
 		});
 
-		const loadingNotification = document.getElementById("loadingNotification");
-		const successNotification = document.getElementById("successNotification");
-		const errorNotification = document.getElementById("errorNotification");
+		/* UI elements */
+		const galleryPage = document.getElementById("gallery-page");
+		const animationPage = document.getElementById("animation-page");
 		const contentEl = document.querySelector(".content");
+		const statusEl = document.getElementById("status");
 		const providerSelectEl = document.getElementById("providerSelect");
 		const inspireBtnEl = document.querySelector(".inspire-btn");
 		const resetBtnEl = document.querySelector(".reset-btn");
 
-		const notificationTimers = new WeakMap();
+		const loadingNotification = document.getElementById("loadingNotification");
+		const successNotification = document.getElementById("successNotification");
+		const errorNotification = document.getElementById("errorNotification");
 
-		function hideNotification(el) {
-			const timerId = notificationTimers.get(el);
-			if (timerId) clearTimeout(timerId);
-			notificationTimers.delete(el);
-			el.style.display = "none";
+		let provider = "aic";
+		let seenIds = new Set();
+		let activeAbortController = null;
+		let startupArtworks = [];
+
+		const AIC_ARTWORKS_URL = "https://api.artic.edu/api/v1/artworks";
+		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
+		const AIC_FIELDS = [
+			"id",
+			"title",
+			"image_id",
+			"artist_display",
+			"date_display",
+			"medium_display",
+			"description"
+		];
+
+		const SEARCH_TERMS = [
+			"painting",
+			"portrait",
+			"landscape",
+			"flower",
+			"woman",
+			"man",
+			"animal",
+			"vase",
+			"sculpture",
+			"drawing",
+			"textile",
+			"abstract",
+			"nature",
+			"water",
+			"still life",
+			"city"
+		];
+
+		function setStatus(message, isError = false) {
+			statusEl.textContent = message || "";
+			statusEl.classList.toggle("error", isError);
+		}
+
+		function setControlsDisabled(disabled) {
+			providerSelectEl.disabled = disabled;
+			inspireBtnEl.disabled = disabled;
+			resetBtnEl.disabled = disabled;
 		}
 
 		function showNotification(el, duration = 2000) {
-			[loadingNotification, successNotification, errorNotification].forEach(hideNotification);
+			[loadingNotification, successNotification, errorNotification].forEach(n => {
+				n.style.display = "none";
+			});
+
 			el.style.display = "block";
 
 			if (duration) {
-				const timerId = setTimeout(() => hideNotification(el), duration);
-				notificationTimers.set(el, timerId);
+				setTimeout(() => {
+					el.style.display = "none";
+				}, duration);
 			}
 		}
 
-		function showError(msg) {
-			errorNotification.textContent = msg || "Something went wrong.";
-			showNotification(errorNotification, 5000);
-			console.error("Error:", msg);
-		}
-
-		function setButtonsDisabled(disabled) {
-			inspireBtnEl.disabled = disabled;
-			providerSelectEl.disabled = disabled;
-			resetBtnEl.disabled = disabled;
+		function showError(message) {
+			errorNotification.textContent = message || "Something went wrong.";
+			showNotification(errorNotification, 4000);
+			setStatus(message, true);
+			console.error(message);
 		}
 
 		function renderLoadingCards() {
 			contentEl.innerHTML = "";
+
 			for (let i = 0; i < 6; i++) {
 				const card = document.createElement("div");
 				card.className = "loading-card";
+
 				card.innerHTML = `
 					<div class="loading-image">Loading image…</div>
 					<div class="loading-info">
 						<p>Connecting to API…</p>
 					</div>
 				`;
+
 				contentEl.appendChild(card);
 			}
 		}
-
-		let provider = "aic";
-		let activeController = null;
-		let seenIds = new Set();
-
-		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
-		const AIC_FIELDS = ["id", "title", "image_id", "artist_display", "date_display", "medium_display", "description"];
-		const SEARCH_TERMS = [
-			"painting", "portrait", "landscape", "flower", "woman", "man", "animal", "vase",
-			"sculpture", "drawing", "textile", "abstract", "nature", "water", "still life", "city"
-		];
 
 		function loadSeen() {
 			try {
@@ -509,43 +543,47 @@
 			} catch {}
 		}
 
-		async function fetchWithTimeout(url, { signal, timeoutMs = 10000, ...options } = {}) {
-			if (signal?.aborted) throw createAbortError();
+		function clearSeen() {
+			seenIds.clear();
+			saveSeen();
+		}
 
+		async function fetchWithTimeout(url, options = {}, timeoutMs = 9000) {
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-			function onAbort() {
-				controller.abort();
+			if (options.signal) {
+				options.signal.addEventListener("abort", () => controller.abort(), { once: true });
 			}
-
-			if (signal) signal.addEventListener("abort", onAbort, { once: true });
 
 			try {
 				const response = await fetch(url, {
 					...options,
 					signal: controller.signal
 				});
+
+				if (!response.ok) {
+					throw new Error(`${response.status} ${response.statusText}`);
+				}
+
 				return response;
 			} finally {
 				clearTimeout(timeoutId);
-				if (signal) signal.removeEventListener("abort", onAbort);
 			}
 		}
 
-		async function fetchJSON(url, options = {}) {
-			const response = await fetchWithTimeout(url, options);
-			if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+		async function fetchJSON(url, options = {}, timeoutMs = 9000) {
+			const response = await fetchWithTimeout(url, options, timeoutMs);
 			return response.json();
 		}
 
 		function mapAICArtwork(item) {
-			if (!item?.image_id) return null;
+			if (!item || !item.image_id) return null;
 
 			return {
 				id: `aic_${item.id}`,
 				title: cleanText(item.title || "Untitled"),
-				imageUrl: `https://www.artic.edu/iiif/2/${item.image_id}/full/512,/0/default.jpg`,
+				imageUrl: `https://www.artic.edu/iiif/2/${item.image_id}/full/600,/0/default.jpg`,
 				imageUrlLarge: `https://www.artic.edu/iiif/2/${item.image_id}/full/1200,/0/default.jpg`,
 				artist: cleanText(item.artist_display || "Artist Unknown"),
 				date: cleanText(item.date_display || ""),
@@ -555,172 +593,173 @@
 			};
 		}
 
+		function mapMetArtwork(item) {
+			if (!item) return null;
+
+			const small = item.primaryImageSmall || item.primaryImage;
+			const large = item.primaryImage || item.primaryImageSmall;
+
+			if (!small && !large) return null;
+
+			return {
+				id: `met_${item.objectID}`,
+				title: cleanText(item.title || "Untitled"),
+				imageUrl: small || large,
+				imageUrlLarge: large || small,
+				artist: cleanText(item.artistDisplayName || "Artist Unknown"),
+				date: cleanText(item.objectDate || ""),
+				medium: cleanText(item.medium || ""),
+				description: cleanText(item.creditLine || ""),
+				license: "The Met Open Access"
+			};
+		}
+
 		async function fetchAICBatch(signal) {
-	const results = [];
+			const all = [];
 
-	for (let attempt = 0; attempt < 5 && results.length < 24; attempt++) {
-		try {
-			const page = Math.floor(Math.random() * 250) + 1;
+			const pages = shuffle([
+				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+				15, 20, 25, 30, 35, 40, 45, 50,
+				60, 70, 80, 90, 100
+			]);
 
-			const params = new URLSearchParams();
-			params.set("page", String(page));
-			params.set("limit", "100");
-			params.set("fields", AIC_FIELDS.join(","));
+			for (const page of pages) {
+				if (all.length >= 24) break;
 
-			const url = `https://api.artic.edu/api/v1/artworks?${params.toString()}`;
-			const data = await fetchJSON(url, { signal, timeoutMs: 10000 });
+				try {
+					const params = new URLSearchParams();
+					params.set("page", String(page));
+					params.set("limit", "100");
+					params.set("fields", AIC_FIELDS.join(","));
 
-			const mapped = (data.data || [])
-				.map(mapAICArtwork)
-				.filter(Boolean);
+					const data = await fetchJSON(`${AIC_ARTWORKS_URL}?${params.toString()}`, { signal }, 9000);
 
-			results.push(...mapped);
-		} catch (error) {
-			if (error.name === "AbortError") throw error;
-			console.warn("AIC artworks request failed:", error);
+					const mapped = (data.data || [])
+						.map(mapAICArtwork)
+						.filter(Boolean);
+
+					all.push(...mapped);
+				} catch (error) {
+					if (error.name === "AbortError") throw error;
+					console.warn("AIC artworks request failed:", error);
+				}
+			}
+
+			if (all.length < 6) {
+				try {
+					const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
+
+					const params = new URLSearchParams();
+					params.set("q", term);
+					params.set("limit", "100");
+					params.set("fields", AIC_FIELDS.join(","));
+
+					const data = await fetchJSON(`${AIC_SEARCH_URL}?${params.toString()}`, { signal }, 9000);
+
+					const mapped = (data.data || [])
+						.map(mapAICArtwork)
+						.filter(Boolean);
+
+					all.push(...mapped);
+				} catch (error) {
+					if (error.name === "AbortError") throw error;
+					console.warn("AIC search fallback failed:", error);
+				}
+			}
+
+			return dedupeArtworks(all);
 		}
-	}
 
-	const byId = new Map();
-	for (const item of results) {
-		if (item?.id && item?.imageUrl && !byId.has(item.id)) {
-			byId.set(item.id, item);
-		}
-	}
-
-	return shuffle(Array.from(byId.values()));
-}
 		async function fetchMetBatch(signal) {
 			const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
 			const searchUrl = `https://collectionapi.metmuseum.org/public/collection/v1/search?hasImages=true&q=${encodeURIComponent(term)}`;
-			const searchData = await fetchJSON(searchUrl, { signal, timeoutMs: 10000 });
+			const searchData = await fetchJSON(searchUrl, { signal }, 9000);
 			const ids = shuffle(searchData.objectIDs || []).slice(0, 80);
+
 			const results = [];
 			let index = 0;
-			const concurrency = 5;
+			const concurrency = 4;
 
 			async function worker() {
 				while (!signal.aborted && results.length < 24 && index < ids.length) {
 					const id = ids[index++];
 
-					for (let attempt = 0; attempt < 3; attempt++) {
-						try {
-							const response = await fetchWithTimeout(
-								`https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`,
-								{ signal, timeoutMs: 8000 }
-							);
+					try {
+						const objectUrl = `https://collectionapi.metmuseum.org/public/collection/v1/objects/${id}`;
+						const response = await fetchWithTimeout(objectUrl, { signal }, 9000);
+						const objectData = await response.json();
+						const mapped = mapMetArtwork(objectData);
 
-							if (response.status === 429 || response.status === 403) {
-								await sleep(500 + attempt * 700, signal);
-								continue;
-							}
-
-							if (!response.ok) break;
-
-							const obj = await response.json();
-							const small = obj.primaryImageSmall || obj.primaryImage;
-							const large = obj.primaryImage || obj.primaryImageSmall;
-
-							if (small || large) {
-								results.push({
-									id: `met_${obj.objectID}`,
-									title: cleanText(obj.title || "Untitled"),
-									imageUrl: small || large,
-									imageUrlLarge: large || small,
-									artist: cleanText(obj.artistDisplayName || "Artist Unknown"),
-									date: cleanText(obj.objectDate || ""),
-									medium: cleanText(obj.medium || ""),
-									description: cleanText(obj.creditLine || ""),
-									license: "The Met Open Access"
-								});
-							}
-
-							break;
-						} catch (error) {
-							if (error.name === "AbortError") throw error;
-							await sleep(300 + attempt * 400, signal).catch(() => {});
+						if (mapped) {
+							results.push(mapped);
 						}
+					} catch (error) {
+						if (error.name === "AbortError") throw error;
+						console.warn("Met object request failed:", error);
+						await sleep(250);
 					}
 				}
 			}
 
 			await Promise.all(Array.from({ length: concurrency }, () => worker()));
-			return results;
+
+			return dedupeArtworks(results);
 		}
 
-		function preloadImage(url, timeoutMs = 4500) {
-			return new Promise(resolve => {
-				if (!url) return resolve(false);
+		function dedupeArtworks(items) {
+			const map = new Map();
 
-				const img = new Image();
-				let done = false;
-				const timeoutId = setTimeout(() => finish(false), timeoutMs);
-
-				function finish(ok) {
-					if (done) return;
-					done = true;
-					clearTimeout(timeoutId);
-					img.onload = null;
-					img.onerror = null;
-					resolve(ok);
+			for (const item of items) {
+				if (item && item.id && item.imageUrl && !map.has(item.id)) {
+					map.set(item.id, item);
 				}
-
-				img.onload = () => finish(true);
-				img.onerror = () => finish(false);
-				img.src = url;
-			});
-		}
-
-		async function fetchArtworksForCurrentProvider(signal) {
-			const all = [];
-
-			for (let attempt = 0; attempt < 4 && all.length < 12; attempt++) {
-				const batch = provider === "met"
-					? await fetchMetBatch(signal)
-					: await fetchAICBatch(signal);
-
-				all.push(...batch);
 			}
 
-			const byId = new Map();
-			for (const item of all) {
-				if (item?.id && item?.imageUrl && !byId.has(item.id)) byId.set(item.id, item);
+			return shuffle(Array.from(map.values()));
+		}
+
+		async function loadArtworks(sourceProvider, signal) {
+			let artworks = [];
+
+			if (sourceProvider === "aic") {
+				setStatus("Loading images from Art Institute of Chicago…");
+				artworks = await fetchAICBatch(signal);
+
+				if (artworks.length < 6) {
+					setStatus("AIC had too few images. Trying The Met…");
+					const metArtworks = await fetchMetBatch(signal);
+					artworks = artworks.concat(metArtworks);
+				}
+			} else {
+				setStatus("Loading images from The Met…");
+				artworks = await fetchMetBatch(signal);
+
+				if (artworks.length < 6) {
+					setStatus("The Met had too few images. Trying AIC…");
+					const aicArtworks = await fetchAICBatch(signal);
+					artworks = artworks.concat(aicArtworks);
+				}
 			}
 
-			return shuffle(Array.from(byId.values()));
+			artworks = dedupeArtworks(artworks);
+
+			let unseen = artworks.filter(item => !seenIds.has(item.id));
+
+			if (unseen.length < 6) {
+				unseen = artworks;
+			}
+
+			return unseen.slice(0, 6);
 		}
 
-		async function chooseSixRenderable(candidates) {
-			let usable = candidates.filter(item => !seenIds.has(item.id));
-			if (usable.length < 6) usable = candidates;
-
-			const firstGroup = usable.slice(0, 18);
-			const checks = await Promise.all(firstGroup.map(async artwork => ({
-				artwork,
-				ok: await preloadImage(artwork.imageUrl)
-			})));
-
-			const loaded = checks.filter(item => item.ok).map(item => item.artwork);
-			if (loaded.length >= 6) return loaded.slice(0, 6);
-
-			return usable.slice(0, 6);
-		}
-
-		function makeDetailPageUrl(artwork, fullImageUrl) {
-			const title = cleanText(artwork.title || "Untitled");
-			const artist = cleanText(artwork.artist || "Artist Unknown");
-			const date = cleanText(artwork.date || "");
-			const medium = cleanText(artwork.medium || "");
-			const desc = cleanText(artwork.description || "");
-			const license = cleanText(artwork.license || "");
-
-			const safeTitle = escapeHTML(title);
-			const safeArtist = escapeHTML(artist);
-			const safeDate = escapeHTML(date);
-			const safeMedium = escapeHTML(medium);
-			const safeDesc = escapeHTML(desc);
-			const safeLicense = escapeHTML(license);
-			const safeImageUrl = escapeHTML(fullImageUrl);
+		function makeDetailPageUrl(artwork) {
+			const safeTitle = escapeHTML(artwork.title || "Untitled");
+			const safeArtist = escapeHTML(artwork.artist || "Artist Unknown");
+			const safeDate = escapeHTML(artwork.date || "");
+			const safeMedium = escapeHTML(artwork.medium || "");
+			const safeDesc = escapeHTML(artwork.description || "");
+			const safeLicense = escapeHTML(artwork.license || "");
+			const safeImageUrl = escapeHTML(artwork.imageUrlLarge || artwork.imageUrl);
 
 			const html = `<!DOCTYPE html>
 <html lang="et">
@@ -729,34 +768,73 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>${safeTitle}</title>
 <style>
-:root { --text:#333; --muted:#888; --bg:#f5f5f5; }
-body { font-family:"Franklin Gothic Medium","Arial Narrow",Arial,sans-serif; background:var(--bg); color:var(--text); margin:0; padding:20px; }
-.wrap { max-width:1100px; margin:0 auto; }
-img { max-width:100%; height:auto; display:block; border-radius:8px; margin-bottom:16px; }
-.caption { padding: 15px 0 0 0; }
-.caption-title { margin:0 0 8px 0; font-size:1.1rem; font-weight:400; color:#222; }
-.caption-line { margin:0; font-size:0.9rem; color:#666; }
-.caption-date { margin-top:5px; font-size:0.8rem; color:var(--muted); }
-.desc { margin-top:12px; font-size:0.95rem; line-height:1.45; white-space:pre-wrap; color:#333; }
-.license { margin-top:12px; font-size:0.85rem; color:#555; }
-.actions { margin-top:14px; }
-.btn { display:inline-block; background:#65105b; color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; }
+body {
+	font-family: "Franklin Gothic Medium", "Arial Narrow", Arial, sans-serif;
+	background: #f5f5f5;
+	color: #333;
+	margin: 0;
+	padding: 20px;
+}
+.wrap {
+	max-width: 1100px;
+	margin: 0 auto;
+}
+img {
+	max-width: 100%;
+	height: auto;
+	display: block;
+	border-radius: 8px;
+	margin-bottom: 16px;
+}
+.caption-title {
+	margin: 0 0 8px 0;
+	font-size: 1.2rem;
+	font-weight: 600;
+	color: #222;
+}
+.caption-line {
+	margin: 0;
+	font-size: 0.95rem;
+	color: #666;
+}
+.caption-date {
+	margin-top: 5px;
+	font-size: 0.85rem;
+	color: #888;
+}
+.desc {
+	margin-top: 12px;
+	font-size: 0.95rem;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	color: #333;
+}
+.license {
+	margin-top: 12px;
+	font-size: 0.85rem;
+	color: #555;
+}
+.btn {
+	display: inline-block;
+	margin-top: 14px;
+	background: #65105b;
+	color: #fff;
+	text-decoration: none;
+	padding: 10px 14px;
+	border-radius: 10px;
+}
 </style>
 </head>
 <body>
 <div class="wrap">
-	<img src="${safeImageUrl}" alt="${safeTitle}"/>
-	<div class="caption">
-		<div class="caption-title">${safeTitle}</div>
-		<p class="caption-line">${safeArtist}</p>
-		<p class="caption-date">${safeDate}</p>
-	</div>
+	<img src="${safeImageUrl}" alt="${safeTitle}">
+	<div class="caption-title">${safeTitle}</div>
+	<p class="caption-line">${safeArtist}</p>
+	<p class="caption-date">${safeDate}</p>
 	${safeMedium ? `<p class="caption-line">${safeMedium}</p>` : ""}
 	${safeDesc ? `<div class="desc">${safeDesc}</div>` : ""}
 	${safeLicense ? `<div class="license">${safeLicense}</div>` : ""}
-	<div class="actions">
-		<a class="btn" href="${safeImageUrl}" target="_blank" rel="noopener noreferrer">Open image in original size</a>
-	</div>
+	<a class="btn" href="${safeImageUrl}" target="_blank" rel="noopener noreferrer">Open image in original size</a>
 </div>
 </body>
 </html>`;
@@ -768,6 +846,11 @@ img { max-width:100%; height:auto; display:block; border-radius:8px; margin-bott
 		function makeCard(artwork) {
 			const card = document.createElement("article");
 			card.className = "artwork-card";
+
+			const link = document.createElement("a");
+			link.href = makeDetailPageUrl(artwork);
+			link.target = "_blank";
+			link.rel = "noopener noreferrer";
 
 			const img = new Image();
 			img.loading = "eager";
@@ -782,102 +865,122 @@ img { max-width:100%; height:auto; display:block; border-radius:8px; margin-bott
 				img.replaceWith(fallback);
 			}, { once: true });
 
-			const detailUrl = makeDetailPageUrl(artwork, artwork.imageUrlLarge || artwork.imageUrl);
-
-			const link = document.createElement("a");
-			link.href = detailUrl;
-			link.target = "_blank";
-			link.rel = "noopener noreferrer";
 			link.appendChild(img);
 
 			const info = document.createElement("div");
 			info.className = "artwork-info";
 
-			const h3 = document.createElement("h3");
-			h3.textContent = artwork.title || "Untitled";
+			const title = document.createElement("h3");
+			title.textContent = artwork.title || "Untitled";
 
-			const pArtist = document.createElement("p");
-			pArtist.textContent = artwork.artist || "Artist Unknown";
+			const artist = document.createElement("p");
+			artist.textContent = artwork.artist || "Artist Unknown";
 
-			const pDate = document.createElement("p");
-			pDate.className = "date";
-			pDate.textContent = artwork.date || "";
+			const date = document.createElement("p");
+			date.className = "date";
+			date.textContent = artwork.date || "";
 
-			const pLicense = document.createElement("p");
-			pLicense.className = "license";
-			pLicense.textContent = artwork.license || "";
+			const license = document.createElement("p");
+			license.className = "license";
+			license.textContent = artwork.license || "";
 
-			info.appendChild(h3);
-			info.appendChild(pArtist);
-			info.appendChild(pDate);
-			info.appendChild(pLicense);
+			info.appendChild(title);
+			info.appendChild(artist);
+			info.appendChild(date);
+			info.appendChild(license);
 
 			card.appendChild(link);
 			card.appendChild(info);
+
 			return card;
 		}
 
-		function renderGallery(items) {
+		function renderGallery(artworks) {
 			contentEl.innerHTML = "";
-			items.forEach(item => contentEl.appendChild(makeCard(item)));
+
+			artworks.forEach(artwork => {
+				contentEl.appendChild(makeCard(artwork));
+			});
 		}
 
-		async function showSixNew() {
-			if (activeController) activeController.abort();
-			activeController = new AbortController();
-			const signal = activeController.signal;
+		async function showSixNew(useStartupArtworks = false) {
+			if (activeAbortController) {
+				activeAbortController.abort();
+			}
 
-			setButtonsDisabled(true);
+			activeAbortController = new AbortController();
+			const signal = activeAbortController.signal;
+
+			setControlsDisabled(true);
 			showNotification(loadingNotification, 0);
-			renderLoadingCards();
 
 			try {
-				const candidates = await fetchArtworksForCurrentProvider(signal);
-				const nextSix = await chooseSixRenderable(candidates);
+				let artworks = [];
 
-				if (!nextSix.length) {
+				if (useStartupArtworks && startupArtworks.length >= 6) {
+					artworks = startupArtworks.slice(0, 6);
+				} else {
+					renderLoadingCards();
+					artworks = await loadArtworks(provider, signal);
+				}
+
+				if (!artworks.length) {
 					contentEl.innerHTML = "";
 					showError("No images found. Try again or choose the other API.");
 					return;
 				}
 
-				nextSix.forEach(item => seenIds.add(item.id));
+				artworks.forEach(item => seenIds.add(item.id));
 				saveSeen();
-				renderGallery(nextSix);
+
+				renderGallery(artworks);
 				showNotification(successNotification, 1200);
+				setStatus(`Loaded ${artworks.length} images.`);
 			} catch (error) {
 				if (error.name !== "AbortError") {
-					contentEl.innerHTML = "";
 					console.error(error);
 					showError("Images could not be loaded. Try again or choose the other API.");
 				}
 			} finally {
 				if (!signal.aborted) {
-					hideNotification(loadingNotification);
-					setButtonsDisabled(false);
+					setControlsDisabled(false);
+					loadingNotification.style.display = "none";
 				}
 			}
 		}
 
-		function resetHistory() {
-			seenIds.clear();
-			saveSeen();
-			showSixNew();
+		async function prepareStartupArtworks() {
+			const controller = new AbortController();
+
+			try {
+				startupArtworks = await loadArtworks(provider, controller.signal);
+			} catch (error) {
+				console.warn("Startup loading failed:", error);
+				startupArtworks = [];
+			}
 		}
 
-		providerSelectEl.addEventListener("change", (event) => {
+		function resetHistory() {
+			clearSeen();
+			showSixNew(false);
+		}
+
+		providerSelectEl.addEventListener("change", event => {
 			provider = event.target.value;
-			showSixNew();
+			startupArtworks = [];
+			showSixNew(false);
 		});
 
-		inspireBtnEl.addEventListener("click", showSixNew);
+		inspireBtnEl.addEventListener("click", () => showSixNew(false));
 		resetBtnEl.addEventListener("click", resetHistory);
 
 		loadSeen();
 
-		setTimeout(() => {
-			const animationPage = document.getElementById("animation-page");
-			const galleryPage = document.getElementById("gallery-page");
+		const startupPromise = prepareStartupArtworks();
+
+		async function openGallery() {
+			await sleep(3500);
+			await startupPromise;
 
 			animationPage.classList.add("fade-out");
 
@@ -886,9 +989,11 @@ img { max-width:100%; height:auto; display:block; border-radius:8px; margin-bott
 				ctx.clearRect(0, 0, canvas.width, canvas.height);
 				animationPage.style.display = "none";
 				galleryPage.style.display = "block";
-				showSixNew();
+				showSixNew(true);
 			}, 1000);
-		}, 3500);
+		}
+
+		openGallery();
 	</script>
 </body>
 </html>
