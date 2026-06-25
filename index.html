@@ -578,21 +578,20 @@
 		}
 
 		function mapAICArtwork(item) {
-			if (!item || !item.image_id) return null;
+	if (!item || !item.image_id) return null;
 
-			return {
-				id: `aic_${item.id}`,
-				title: cleanText(item.title || "Untitled"),
-				imageUrl: `https://www.artic.edu/iiif/2/${item.image_id}/full/600,/0/default.jpg`,
-				imageUrlLarge: `https://www.artic.edu/iiif/2/${item.image_id}/full/1200,/0/default.jpg`,
-				artist: cleanText(item.artist_display || "Artist Unknown"),
-				date: cleanText(item.date_display || ""),
-				medium: cleanText(item.medium_display || ""),
-				description: cleanText(item.description || ""),
-				license: "Art Institute of Chicago"
-			};
-		}
-
+	return {
+		id: `aic_${item.id}`,
+		title: cleanText(item.title || "Untitled"),
+		imageUrl: `https://www.artic.edu/iiif/2/${item.image_id}/full/843,/0/default.jpg`,
+		imageUrlLarge: `https://www.artic.edu/iiif/2/${item.image_id}/full/1200,/0/default.jpg`,
+		artist: cleanText(item.artist_display || "Artist Unknown"),
+		date: cleanText(item.date_display || ""),
+		medium: cleanText(item.medium_display || ""),
+		description: cleanText(item.description || ""),
+		license: "Art Institute of Chicago Public Domain"
+	};
+}
 		function mapMetArtwork(item) {
 			if (!item) return null;
 
@@ -614,61 +613,41 @@
 			};
 		}
 
-		async function fetchAICBatch(signal) {
-			const all = [];
+async function fetchAICBatch(signal) {
+	const all = [];
 
-			const pages = shuffle([
-				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-				15, 20, 25, 30, 35, 40, 45, 50,
-				60, 70, 80, 90, 100
-			]);
+	const pages = shuffle([
+		1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+		11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+	]);
 
-			for (const page of pages) {
-				if (all.length >= 24) break;
+	for (const page of pages) {
+		if (all.length >= 30) break;
 
-				try {
-					const params = new URLSearchParams();
-					params.set("page", String(page));
-					params.set("limit", "100");
-					params.set("fields", AIC_FIELDS.join(","));
+		try {
+			const params = new URLSearchParams();
 
-					const data = await fetchJSON(`${AIC_ARTWORKS_URL}?${params.toString()}`, { signal }, 9000);
+			params.set("page", String(page));
+			params.set("limit", "100");
+			params.set("fields", AIC_FIELDS.join(","));
+			params.set("query[term][is_public_domain]", "true");
 
-					const mapped = (data.data || [])
-						.map(mapAICArtwork)
-						.filter(Boolean);
+			const url = `${AIC_SEARCH_URL}?${params.toString()}`;
+			const data = await fetchJSON(url, { signal }, 9000);
 
-					all.push(...mapped);
-				} catch (error) {
-					if (error.name === "AbortError") throw error;
-					console.warn("AIC artworks request failed:", error);
-				}
-			}
+			const mapped = (data.data || [])
+				.map(mapAICArtwork)
+				.filter(Boolean);
 
-			if (all.length < 6) {
-				try {
-					const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
-
-					const params = new URLSearchParams();
-					params.set("q", term);
-					params.set("limit", "100");
-					params.set("fields", AIC_FIELDS.join(","));
-
-					const data = await fetchJSON(`${AIC_SEARCH_URL}?${params.toString()}`, { signal }, 9000);
-
-					const mapped = (data.data || [])
-						.map(mapAICArtwork)
-						.filter(Boolean);
-
-					all.push(...mapped);
-				} catch (error) {
-					if (error.name === "AbortError") throw error;
-					console.warn("AIC search fallback failed:", error);
-				}
-			}
-
-			return dedupeArtworks(all);
+			all.push(...mapped);
+		} catch (error) {
+			if (error.name === "AbortError") throw error;
+			console.warn("AIC public-domain search failed:", error);
 		}
+	}
+
+	return dedupeArtworks(all);
+}
 
 		async function fetchMetBatch(signal) {
 			const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
