@@ -326,6 +326,23 @@
 			return arr;
 		}
 
+		function randomInt(min, max) {
+			return Math.floor(Math.random() * (max - min + 1)) + min;
+		}
+
+		// Returns `count` distinct random integers in [min, max] (inclusive).
+		function randomDistinctInts(min, max, count) {
+			const span = max - min + 1;
+			const n = Math.min(count, span);
+			const pool = new Set();
+
+			while (pool.size < n) {
+				pool.add(randomInt(min, max));
+			}
+
+			return shuffle(Array.from(pool));
+		}
+
 		function dedupeArtworks(items) {
 			const map = new Map();
 
@@ -362,6 +379,27 @@
 				img.onerror = () => finish(false);
 				img.src = url;
 			});
+		}
+
+		// Runs async tasks with a concurrency cap, continuing past individual failures.
+		async function runWithConcurrency(tasks, limit) {
+			const results = [];
+			let index = 0;
+
+			async function worker() {
+				while (index < tasks.length) {
+					const i = index++;
+
+					try {
+						results[i] = await tasks[i]();
+					} catch (error) {
+						results[i] = { error };
+					}
+				}
+			}
+
+			await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()));
+			return results;
 		}
 
 		const canvas = document.getElementById("canvas1");
@@ -488,10 +526,14 @@
 		let provider = "met";
 		let seenIds = new Set();
 		let activeAbortController = null;
+		let inspireRoundCount = 0;
 
 		const AIC_SEARCH_URL = "https://api.artic.edu/api/v1/artworks/search";
 		const HARVARD_OBJECT_URL = "https://api.harvardartmuseums.org/object";
 
+		// "description" alone is almost always empty in the AIC dataset.
+		// The actual curatorial / historical text lives across several fields,
+		// so we request all of them and pick whichever has real content.
 		const AIC_FIELDS = [
 			"id",
 			"title",
@@ -501,7 +543,33 @@
 			"date_display",
 			"medium_display",
 			"description",
+			"short_description",
+			"publication_history",
+			"exhibition_history",
+			"provenance_text",
+			"style_title",
+			"place_of_origin",
+			"department_title",
+			"classification_title",
+			"credit_line",
 			"is_public_domain"
+		];
+
+		const HARVARD_FIELDS = [
+			"id",
+			"title",
+			"dated",
+			"medium",
+			"creditline",
+			"primaryimageurl",
+			"baseimageurl",
+			"people",
+			"description",
+			"labeltext",
+			"commentary",
+			"culture",
+			"technique",
+			"classification"
 		];
 
 		const SEARCH_TERMS = [
@@ -591,6 +659,7 @@
 
 		function clearSeen() {
 			seenIds.clear();
+			inspireRoundCount = 0;
 			saveSeen();
 		}
 
@@ -617,7 +686,15 @@
 				});
 
 				if (!response.ok) {
-					throw new Error(`${response.status} ${response.statusText}`);
+					let detail = "";
+
+					try {
+						detail = await response.text();
+					} catch {}
+
+					const err = new Error(`HTTP ${response.status} ${response.statusText} for ${url}${detail ? ` — ${detail.slice(0, 200)}` : ""}`);
+					err.status = response.status;
+					throw err;
 				}
 
 				return response;
@@ -636,12 +713,34 @@
 			return `${baseUrl}/${encodeURIComponent(imageId)}/full/${size}/0/default.jpg`;
 		}
 
+		// Picks the first non-empty, "real" text field — avoids generic
+		// boilerplate like a bare credit line standing in for actual history.
+		function firstNonEmpty(...values) {
+			for (const value of values) {
+				const cleaned = cleanText(value);
+				if (cleaned) return cleaned;
+			}
+			return "";
+		}
+
 		function mapAICArtwork(item, iiifBase) {
 			if (!item || !item.image_id) return null;
 			if (item.is_public_domain === false) return null;
 
 			const baseUrl = iiifBase || "https://www.artic.edu/iiif/2";
 			const lqip = item.thumbnail && item.thumbnail.lqip ? item.thumbnail.lqip : "";
+
+			const historicalText = firstNonEmpty(
+				item.description,
+				item.short_description,
+				item.provenance_text,
+				item.publication_history,
+				item.exhibition_history
+			);
+
+			const contextBits = [item.place_of_origin, item.style_title, item.department_title, item.classification_title]
+				.map(cleanText)
+				.filter(Boolean);
 
 			return {
 				id: `aic_${item.id}`,
@@ -657,7 +756,9 @@
 				artist: cleanText(item.artist_display || "Artist Unknown"),
 				date: cleanText(item.date_display || ""),
 				medium: cleanText(item.medium_display || ""),
-				description: cleanText(item.description || ""),
+				description: historicalText,
+				context: contextBits.join(" · "),
+				creditLine: cleanText(item.credit_line || ""),
 				license: "Art Institute of Chicago Public Domain"
 			};
 		}
@@ -670,6 +771,24 @@
 
 			if (!small && !large) return null;
 
+			// The Met API has no free-text "history" field for most objects,
+			// so we build a richer descriptive paragraph from the structured
+			// fields it does provide instead of just the credit line.
+			const sentences = [];
+
+			if (item.objectName) sentences.push(cleanText(item.objectName));
+			if (item.culture) sentences.push(`Culture: ${cleanText(item.culture)}`);
+			if (item.period) sentences.push(`Period: ${cleanText(item.period)}`);
+			if (item.dynasty) sentences.push(`Dynasty: ${cleanText(item.dynasty)}`);
+			if (item.reign) sentences.push(`Reign: ${cleanText(item.reign)}`);
+			if (item.geographyType && item.country) {
+				sentences.push(`${cleanText(item.geographyType)}: ${cleanText(item.country)}`);
+			} else if (item.country) {
+				sentences.push(`Origin: ${cleanText(item.country)}`);
+			}
+			if (item.classification) sentences.push(`Classification: ${cleanText(item.classification)}`);
+			if (item.dimensions) sentences.push(`Dimensions: ${cleanText(item.dimensions)}`);
+
 			return {
 				id: `met_${item.objectID}`,
 				title: cleanText(item.title || "Untitled"),
@@ -680,7 +799,9 @@
 				artist: cleanText(item.artistDisplayName || "Artist Unknown"),
 				date: cleanText(item.objectDate || ""),
 				medium: cleanText(item.medium || ""),
-				description: cleanText(item.creditLine || ""),
+				description: sentences.join(" · "),
+				context: "",
+				creditLine: cleanText(item.creditLine || ""),
 				license: "The Met Open Access"
 			};
 		}
@@ -695,6 +816,9 @@
 				? item.people.map(person => person.name).filter(Boolean).join(", ")
 				: "Artist Unknown";
 
+			const historicalText = firstNonEmpty(item.description, item.labeltext, item.commentary);
+			const contextBits = [item.culture, item.technique, item.classification].map(cleanText).filter(Boolean);
+
 			return {
 				id: `harvard_${item.id}`,
 				title: cleanText(item.title || "Untitled"),
@@ -705,7 +829,9 @@
 				artist: cleanText(artist),
 				date: cleanText(item.dated || ""),
 				medium: cleanText(item.medium || ""),
-				description: cleanText(item.creditline || ""),
+				description: historicalText,
+				context: contextBits.join(" · "),
+				creditLine: cleanText(item.creditline || ""),
 				license: "Harvard Art Museums"
 			};
 		}
@@ -734,37 +860,49 @@
 			return null;
 		}
 
+		// Fetches several AIC search pages in parallel (small concurrency cap so we
+		// don't hammer the API) and picks a fresh, wide random page range each call
+		// so "Inspire Me" keeps surfacing new artworks across many clicks instead of
+		// re-requesting the same handful of pages and silently running dry.
 		async function fetchAICBatch(signal) {
 			const all = [];
-			const pages = shuffle([
-				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-				11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-				25, 30, 35, 40, 45, 50
-			]);
+			const pageNumbers = randomDistinctInts(1, 800, 14);
 
-			for (const page of pages) {
-				if (all.length >= 40) break;
+			const tasks = pageNumbers.map(page => async () => {
+				const params = new URLSearchParams();
 
-				try {
-					const params = new URLSearchParams();
+				params.set("query[term][is_public_domain]", "true");
+				params.set("page", String(page));
+				params.set("limit", "100");
+				params.set("fields", AIC_FIELDS.join(","));
 
-					params.set("query[term][is_public_domain]", "true");
-					params.set("page", String(page));
-					params.set("limit", "100");
-					params.set("fields", AIC_FIELDS.join(","));
+				const data = await fetchJSON(`${AIC_SEARCH_URL}?${params.toString()}`, { signal }, 10000);
+				const iiifBase = data.config && data.config.iiif_url ? data.config.iiif_url : "https://www.artic.edu/iiif/2";
 
-					const data = await fetchJSON(`${AIC_SEARCH_URL}?${params.toString()}`, { signal }, 10000);
-					const iiifBase = data.config && data.config.iiif_url ? data.config.iiif_url : "https://www.artic.edu/iiif/2";
+				return (data.data || [])
+					.map(item => mapAICArtwork(item, iiifBase))
+					.filter(Boolean);
+			});
 
-					const mapped = (data.data || [])
-						.map(item => mapAICArtwork(item, iiifBase))
-						.filter(Boolean);
+			const results = await runWithConcurrency(tasks, 4);
 
-					all.push(...mapped);
-				} catch (error) {
-					if (error.name === "AbortError") throw error;
-					console.warn("AIC request failed:", error);
+			let lastError = null;
+
+			for (const result of results) {
+				if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+				if (result && result.error) {
+					lastError = result.error;
+					console.warn("AIC page request failed:", result.error);
+					continue;
 				}
+
+				all.push(...result);
+			}
+
+			if (all.length === 0 && lastError) {
+				// Surface the real reason instead of just silently falling back.
+				throw lastError;
 			}
 
 			return dedupeArtworks(all);
@@ -813,31 +951,41 @@
 			}
 
 			const all = [];
-			const pages = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30]);
+			const pageNumbers = randomDistinctInts(1, 200, 10);
 
-			for (const page of pages) {
-				if (all.length >= 40) break;
+			const tasks = pageNumbers.map(page => async () => {
+				const params = new URLSearchParams();
 
-				try {
-					const params = new URLSearchParams();
+				params.set("apikey", HARVARD_API_KEY.trim());
+				params.set("size", "100");
+				params.set("page", String(page));
+				params.set("hasimage", "1");
+				params.set("fields", HARVARD_FIELDS.join(","));
 
-					params.set("apikey", HARVARD_API_KEY.trim());
-					params.set("size", "100");
-					params.set("page", String(page));
-					params.set("hasimage", "1");
-					params.set("fields", "id,title,dated,medium,creditline,primaryimageurl,baseimageurl,people");
+				const data = await fetchJSON(`${HARVARD_OBJECT_URL}?${params.toString()}`, { signal }, 10000);
 
-					const data = await fetchJSON(`${HARVARD_OBJECT_URL}?${params.toString()}`, { signal }, 10000);
+				return (data.records || [])
+					.map(mapHarvardArtwork)
+					.filter(Boolean);
+			});
 
-					const mapped = (data.records || [])
-						.map(mapHarvardArtwork)
-						.filter(Boolean);
+			const results = await runWithConcurrency(tasks, 4);
+			let lastError = null;
 
-					all.push(...mapped);
-				} catch (error) {
-					if (error.name === "AbortError") throw error;
-					console.warn("Harvard request failed:", error);
+			for (const result of results) {
+				if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
+				if (result && result.error) {
+					lastError = result.error;
+					console.warn("Harvard page request failed:", result.error);
+					continue;
 				}
+
+				all.push(...result);
+			}
+
+			if (all.length === 0 && lastError) {
+				throw lastError;
 			}
 
 			return dedupeArtworks(all);
@@ -845,20 +993,29 @@
 
 		async function loadArtworks(sourceProvider, signal) {
 			let rawArtworks = [];
+			let providerFailed = false;
+			let failureMessage = "";
 
-			if (sourceProvider === "met") {
-				setStatus("Loading images from The Met New York…");
-				rawArtworks = await fetchMetBatch(signal);
-			}
+			try {
+				if (sourceProvider === "met") {
+					setStatus("Loading images from The Met New York…");
+					rawArtworks = await fetchMetBatch(signal);
+				}
 
-			if (sourceProvider === "harvard") {
-				setStatus("Loading images from Harvard Art Museums…");
-				rawArtworks = await fetchHarvardBatch(signal);
-			}
+				if (sourceProvider === "harvard") {
+					setStatus("Loading images from Harvard Art Museums…");
+					rawArtworks = await fetchHarvardBatch(signal);
+				}
 
-			if (sourceProvider === "aic") {
-				setStatus("Loading images from Art Institute of Chicago…");
-				rawArtworks = await fetchAICBatch(signal);
+				if (sourceProvider === "aic") {
+					setStatus("Loading images from Art Institute of Chicago…");
+					rawArtworks = await fetchAICBatch(signal);
+				}
+			} catch (error) {
+				if (error.name === "AbortError") throw error;
+				providerFailed = true;
+				failureMessage = error.message || String(error);
+				console.warn(`${sourceProvider} batch failed:`, error);
 			}
 
 			let unseen = rawArtworks.filter(item => !seenIds.has(item.id));
@@ -881,7 +1038,12 @@
 			}
 
 			if (finalItems.length < 6 && sourceProvider !== "met") {
-				setStatus("This source had too few working images. Filling with The Met…");
+				if (providerFailed) {
+					setStatus(`${sourceProvider === "aic" ? "Art Institute of Chicago" : "Harvard Art Museums"} ei vastanud korralikult (${failureMessage}). Näitan The Meti pilte.`, true);
+				} else {
+					setStatus("This source had too few working images. Filling with The Met…");
+				}
+
 				const fallbackRaw = await fetchMetBatch(signal);
 
 				for (const artwork of fallbackRaw) {
@@ -904,9 +1066,15 @@
 			const safeArtist = escapeHTML(artwork.artist || "Artist Unknown");
 			const safeDate = escapeHTML(artwork.date || "");
 			const safeMedium = escapeHTML(artwork.medium || "");
+			const safeContext = escapeHTML(artwork.context || "");
 			const safeDesc = escapeHTML(artwork.description || "");
+			const safeCredit = escapeHTML(artwork.creditLine || "");
 			const safeLicense = escapeHTML(artwork.license || "");
 			const safeImageUrl = escapeHTML(artwork.imageUrlLarge || artwork.imageUrl);
+
+			const descriptionBlock = safeDesc
+				? `<div class="desc">${safeDesc}</div>`
+				: `<div class="desc desc-empty">Selle teose kohta ei pakkunud muuseumi andmebaas pikemat ajaloolist kirjeldust.</div>`;
 
 			const html = `<!DOCTYPE html>
 <html lang="et">
@@ -935,7 +1103,7 @@ img {
 }
 .caption-title {
 	margin: 0 0 8px 0;
-	font-size: 1.2rem;
+	font-size: 1.3rem;
 	font-weight: 600;
 	color: #222;
 }
@@ -949,17 +1117,32 @@ img {
 	font-size: 0.85rem;
 	color: #888;
 }
+.context-line {
+	margin-top: 8px;
+	font-size: 0.85rem;
+	color: #65105b;
+	font-style: italic;
+}
 .desc {
-	margin-top: 12px;
-	font-size: 0.95rem;
-	line-height: 1.45;
+	margin-top: 14px;
+	font-size: 1rem;
+	line-height: 1.55;
 	white-space: pre-wrap;
 	color: #333;
 }
-.license {
+.desc-empty {
+	color: #888;
+	font-style: italic;
+}
+.credit {
 	margin-top: 12px;
 	font-size: 0.85rem;
 	color: #555;
+}
+.license {
+	margin-top: 6px;
+	font-size: 0.8rem;
+	color: #777;
 }
 .btn {
 	display: inline-block;
@@ -979,7 +1162,9 @@ img {
 	<p class="caption-line">${safeArtist}</p>
 	<p class="caption-date">${safeDate}</p>
 	${safeMedium ? `<p class="caption-line">${safeMedium}</p>` : ""}
-	${safeDesc ? `<div class="desc">${safeDesc}</div>` : ""}
+	${safeContext ? `<p class="context-line">${safeContext}</p>` : ""}
+	${descriptionBlock}
+	${safeCredit ? `<div class="credit">${safeCredit}</div>` : ""}
 	${safeLicense ? `<div class="license">${safeLicense}</div>` : ""}
 	<a class="btn" href="${safeImageUrl}" target="_blank" rel="noopener noreferrer">Open image in original size</a>
 </div>
@@ -1073,10 +1258,11 @@ img {
 
 				artworks.forEach(item => seenIds.add(item.id));
 				saveSeen();
+				inspireRoundCount += 1;
 
 				renderGallery(artworks);
 				showNotification(successNotification, 1200);
-				setStatus(`Loaded ${artworks.length} images.`);
+				setStatus(`Loaded ${artworks.length} images. (Round ${inspireRoundCount})`);
 			} catch (error) {
 				if (error.name !== "AbortError") {
 					console.error(error);
