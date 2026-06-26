@@ -860,20 +860,31 @@
 			return null;
 		}
 
-		// Fetches several AIC search pages in parallel (small concurrency cap so we
-		// don't hammer the API) and picks a fresh, wide random page range each call
-		// so "Inspire Me" keeps surfacing new artworks across many clicks instead of
-		// re-requesting the same handful of pages and silently running dry.
+		// AIC's search index (Elasticsearch) refuses deep pagination: page * limit
+		// can't exceed its max_result_window (10000). With limit=100 that caps the
+		// usable page range at 1-100 — anything beyond returns an HTTP 400 ("Result
+		// window is too large"), which silently kills every request in the batch.
+		// To still get plenty of variety across many "Inspire Me" clicks without
+		// breaking pagination, we combine a SAFE random page (1-40) with a random
+		// search keyword each time — different keyword+page combos surface very
+		// different artworks even though the page numbers themselves stay small.
+		const AIC_MAX_SAFE_PAGE = 40;
+		const AIC_PAGE_LIMIT = 100;
+
 		async function fetchAICBatch(signal) {
 			const all = [];
-			const pageNumbers = randomDistinctInts(1, 800, 14);
+			const taskCount = 6;
 
-			const tasks = pageNumbers.map(page => async () => {
+			const tasks = Array.from({ length: taskCount }, () => async () => {
+				const term = SEARCH_TERMS[Math.floor(Math.random() * SEARCH_TERMS.length)];
+				const page = randomInt(1, AIC_MAX_SAFE_PAGE);
+
 				const params = new URLSearchParams();
 
+				params.set("q", term);
 				params.set("query[term][is_public_domain]", "true");
 				params.set("page", String(page));
-				params.set("limit", "100");
+				params.set("limit", String(AIC_PAGE_LIMIT));
 				params.set("fields", AIC_FIELDS.join(","));
 
 				const data = await fetchJSON(`${AIC_SEARCH_URL}?${params.toString()}`, { signal }, 10000);
@@ -884,7 +895,7 @@
 					.filter(Boolean);
 			});
 
-			const results = await runWithConcurrency(tasks, 4);
+			const results = await runWithConcurrency(tasks, 3);
 
 			let lastError = null;
 
@@ -951,7 +962,9 @@
 			}
 
 			const all = [];
-			const pageNumbers = randomDistinctInts(1, 200, 10);
+			// Same deep-pagination caution as AIC: keep page numbers modest so a
+			// single oversized `page` value can't 400 the whole batch.
+			const pageNumbers = randomDistinctInts(1, 60, 8);
 
 			const tasks = pageNumbers.map(page => async () => {
 				const params = new URLSearchParams();
